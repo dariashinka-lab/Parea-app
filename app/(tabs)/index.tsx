@@ -7402,7 +7402,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           const p = (m as any).profiles || {}
           return { id: p.id, name: p.name || 'User', photo: p.photos?.[0] || null, color: p.color || '#818CF8', age: p.age }
         })
-        const isCommunityChat = !!dbCommunityEventsRef.current?.find((e: any) => e.id === chatData?.event_id)
+        // Community events have raw IDs (<100000); official events shift +100000
+        const isCommunityChat = !!chatData?.event_id && chatData.event_id < 100000
         const isDuo = chatData?.type === 'duo' || (!isCommunityChat && members.length === 2)
         const partner = otherMembers[0]
         const eventTitle = inviteData?.event_title || dbCommunityEventsRef.current?.find((e: any) => e.id === chatData?.event_id)?.title || feedOfficialDbEventsRef.current?.find((e: any) => e.id === chatData?.event_id)?.title || 'Crew Chat'
@@ -7558,11 +7559,16 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           const p = (mem as any).profiles || {}
           return { id: p.id, name: p.name || 'User', photo: p.photos?.[0] || null, color: p.color || '#818CF8', age: p.age }
         })
-        const isCommunityChat = !!dbCommunityEventsRef.current.find((e: any) => e.id === chat.event_id)
+        // Community events have raw IDs (<100000); official events shift +100000
+        const isCommunityChat = chat.event_id < 100000
         const correctType = chat.type === 'duo' ? 'duo' : 'group'
         const existing = chatListRef.current.find((c: any) => c.id === chat.id)
-        // If chat exists but type/members are stale (e.g. cached as duo before fix), heal it
-        if (existing && existing.type === correctType && (existing.members || 0) === members.length) continue
+        // If chat exists and is in sync (type, member count, communityEventId where needed) — skip
+        const inSync = existing
+          && existing.type === correctType
+          && (existing.members || 0) === members.length
+          && (!isCommunityChat || existing.communityEventId === chat.event_id)
+        if (inSync) continue
         const newChat: any = {
           id: chat.id, type: correctType, eventRefId: chat.event_id,
           event: dbCommunityEventsRef.current.find((e: any) => e.id === chat.event_id)?.title || feedOfficialDbEventsRef.current.find((e: any) => e.id === chat.event_id)?.title || 'Crew Chat',
