@@ -31,6 +31,9 @@ import { supabase } from '../../lib/supabase'
 import { BreathingButton } from '../../lib/components/BreathingButton'
 import { AuroraBg } from '../../lib/components/AuroraBg'
 import { DobBottomSheet } from '../../lib/components/DobBottomSheet'
+import { AnimatedInterestChip } from '../../lib/components/AnimatedInterestChip'
+import { ReportModal } from '../../lib/components/ReportModal'
+import { INTEREST_ICON_MAP } from '../../lib/interest-icons'
 import {
   INTERESTS_LIST, INTERESTS_BY_CATEGORY, INTEREST_CATEGORY_PALETTE, INTEREST_TO_CATEGORY,
   LANGUAGES_LIST, CITIES, MOCK_COMMUNITY_EVENTS, MOCK_EVENTS,
@@ -106,16 +109,6 @@ const LANDING_SLIDES = [
   },
 ]
 
-
-const INTEREST_ICON_MAP: Record<string, any> = {
-  '☕ Coffee': PhCoffee, '🍷 Wine': PhWine, '🎾 Tennis': TennisBall, '🎬 Movies': FilmSlate,
-  '🥾 Hiking': Mountains, '🍕 Foodie': ForkKnife, '🧘 Yoga': YinYang, '🎨 Art': PhPalette,
-  '🎸 Music': MusicNotes, '✈️ Travel': AirplaneTilt, '💃 Dance': MusicNotes, '📚 Books': Books,
-  '💻 IT': PhCpu, '🎮 Gaming': GameController, '📷 Photography': PhCamera, '🎭 Theatre': MaskHappy,
-  '🏖️ Beach': Umbrella, '🎲 Board Games': GameController, '🎤 Concerts': MicrophoneStage,
-  '🏊 Swimming': PersonSimpleSwim, '🏓 Padel': TennisBall, '✂️ Crafts': PhScissors,
-  '👗 Fashion': TShirt, '🏄 Water Sports': WaveSine,
-}
 
 const CATEGORY_ICON: Record<string, any> = { coffee: PhCoffee, sports: Barbell, wine: PhWine, gaming: GameController, tech: PhCpu, outdoors: PhLeaf, food: ForkKnife, culture: PhPalette, music: MusicNotes, dance: MaskHappy, theatre: MaskHappy, art: PhPalette }
 
@@ -1047,40 +1040,6 @@ const SOCIAL_ENERGY = [
   { id: 'party',     label: 'Party animal',    Icon: Confetti,  color: '#EF4444', grad: ['#FEE2E2','#FCA5A5'] as [string,string] },
 ]
 
-function AnimatedInterestChip({ item, isOn, onPress, palette }: {
-  item: string
-  isOn: boolean
-  onPress: () => void
-  palette: typeof INTEREST_CATEGORY_PALETTE[keyof typeof INTEREST_CATEGORY_PALETTE]
-}) {
-  const scale = useRef(new Animated.Value(1)).current
-  const Icon = INTEREST_ICON_MAP[item] || Sparkle
-  const label = item.indexOf(' ') !== -1 ? item.slice(item.indexOf(' ') + 1) : item
-
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.spring(scale, { toValue: 0.85, useNativeDriver: true, speed: 60, bounciness: 0 }),
-      Animated.spring(scale, { toValue: 1.08, useNativeDriver: true, speed: 20, bounciness: 10 }),
-      Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 30 }),
-    ]).start()
-    onPress()
-  }
-
-  return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={1}>
-      <Animated.View style={{
-        transform: [{ scale }],
-        flexDirection: 'row', alignItems: 'center', gap: 6,
-        paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99,
-        backgroundColor: isOn ? palette.selectedBg : palette.bg,
-        borderWidth: 1.5, borderColor: isOn ? palette.selectedBorder : palette.border,
-      }}>
-        <Icon size={15} color={isOn ? palette.text : palette.iconColor} weight="duotone" />
-        <Text style={{ fontSize: 13, fontFamily: 'Outfit-SemiBold', color: isOn ? palette.text : '#64748B' }}>{label}</Text>
-      </Animated.View>
-    </TouchableOpacity>
-  )
-}
 
 function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => void; onFinish: (data: any) => void; userId?: string }) {
   const insets = useSafeAreaInsets()
@@ -3929,41 +3888,6 @@ function ProfilePreviewSheet({ profile, onClose, onBlock, onReport }: { profile:
 }
 
 
-function ReportModal({ profile, onClose, onSubmit }: { profile: any; onClose: () => void; onSubmit: (reason: string, details: string) => void }) {
-  const [selected, setSelected] = useState('')
-  const [details, setDetails] = useState('')
-  return (
-    <Modal transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(5,3,15,0.72)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={onClose} />
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 36 }}>
-        <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', marginBottom: 4 }}>Report {profile?.name}</Text>
-        <Text style={{ fontSize: 13, color: '#94A3B8', marginBottom: 18 }}>Select a reason. We review all reports.</Text>
-        {REPORT_REASONS.map(r => (
-          <TouchableOpacity key={r} onPress={() => setSelected(r)}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', gap: 12 }}>
-            <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selected === r ? '#6366F1' : '#CBD5E1', backgroundColor: selected === r ? '#6366F1' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-              {selected === r && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} />}
-            </View>
-            <Text style={{ fontSize: 15, fontWeight: '500', color: '#1E1B4B' }}>{r}</Text>
-          </TouchableOpacity>
-        ))}
-        <TextInput
-          placeholder="Describe what happened (optional)"
-          placeholderTextColor="#94A3B8"
-          multiline
-          numberOfLines={3}
-          value={details}
-          onChangeText={setDetails}
-          style={{ marginTop: 16, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, fontSize: 14, color: '#1E1B4B', minHeight: 72, textAlignVertical: 'top', borderWidth: 1, borderColor: '#E2E8F0' }}
-        />
-        <TouchableOpacity onPress={() => { if (selected) { onSubmit(selected, details); onClose() } }}
-          style={{ marginTop: 16, backgroundColor: selected ? '#6366F1' : '#E2E8F0', borderRadius: 16, paddingVertical: 15, alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, fontFamily: 'ClashDisplay-Semibold', color: selected ? '#fff' : '#94A3B8' }}>Submit Report</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  )
-}
 
 function SeekersListWithProfile({ vibeResults, onPass, onLike, seekers }: { vibeResults: Record<number, string>; onPass: (id: number) => void; onLike: (sk: any) => void; seekers: any[] }) {
   const [preview, setPreview] = useState<any>(null)
@@ -6696,7 +6620,24 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           }
         }
         if (saved.passedRequests) setPassedRequests(saved.passedRequests)
-        if (saved.chatList) setChatList(saved.chatList)
+        if (saved.chatList) {
+          // Dedupe by id, then by (type, event-pointing key) to catch races where
+          // realtime + manual confirm flows added the same chat with different ids.
+          const seenIds = new Set<any>()
+          const seenKeys = new Set<string>()
+          const deduped = saved.chatList.filter((c: any) => {
+            if (seenIds.has(c.id)) return false
+            const eventKey = c.communityEventId ?? c.eventRefId ?? c.hostEventId ?? c.event
+            if (eventKey != null) {
+              const k = `${c.type}:${eventKey}`
+              if (seenKeys.has(k)) return false
+              seenKeys.add(k)
+            }
+            seenIds.add(c.id)
+            return true
+          })
+          setChatList(deduped)
+        }
         if (saved.chatMessages) {
           // Filter out system messages — they're session-only, shouldn't survive restart
           const cleaned: Record<string, any[]> = {}
@@ -7379,7 +7320,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         if (!ev) return
         if (ev.expiresAt > 0 && ev.expiresAt < Date.now()) return
         setChatList(prev => {
-          const existingIdx = prev.findIndex(c => c.hostEventId === evId)
+          // Look up existing chat by any event-pointing key — realtime/joiner-confirm
+          // creates chats with communityEventId/eventRefId, this poll uses hostEventId.
+          // Without this, both code paths can each create a chat for the same event.
+          const existingIdx = prev.findIndex(c =>
+            c.hostEventId === evId || c.communityEventId === evId || c.eventRefId === evId
+          )
           if (existingIdx >= 0) {
             const updated = [...prev]
             const existingProfiles: any[] = updated[existingIdx].memberProfiles || []
@@ -7394,6 +7340,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             if (!added) return prev
             updated[existingIdx] = {
               ...updated[existingIdx],
+              hostEventId: evId,
               members: newProfiles.length + 1,
               memberProfiles: newProfiles,
               avatars: newProfiles.map((p: any) => p.photo).filter(Boolean),
@@ -8564,7 +8511,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               }
               const createdChatId = newChat.id
               if (ev.type === 'community') communityEventChatMap.current[ev.id] = createdChatId
-              setChatList(prev => [newChat, ...prev])
+              setChatList(prev => prev.some(c => c.id === createdChatId) ? prev : [newChat, ...prev])
               setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
               addNotif({ type: 'confirmed', emoji: '✅', color: '#10B981', title: 'You\'re in!', body: `Your crew for "${ev.title}" is ready`, chatId: createdChatId })
               showToast('Your crew is ready — say hi!', 'Chat created! 💬', '💬')
@@ -8651,7 +8598,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 event: invite.event_title, eventEmoji: '🎉',
                 partnerProfile: inviter,
               }
-              setChatList(prev => [newChat, ...prev])
+              setChatList(prev => prev.some(c => c.id === chatData.id) ? prev : [newChat, ...prev])
               setJoinedEvents(prev => ({ ...prev, [invite.event_ref_id]: 'confirmed' }))
               setIncomingCrewInvites(prev => prev.filter((i: any) => i.id !== invite.id))
               setOfficialEventChatMap(prev => ({ ...prev, [invite.event_ref_id]: chatData.id }))
