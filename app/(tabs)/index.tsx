@@ -29,6 +29,8 @@ import ConfettiCannon from 'react-native-confetti-cannon'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../../lib/supabase'
 import { BreathingButton } from '../../lib/components/BreathingButton'
+import { AuroraBg } from '../../lib/components/AuroraBg'
+import { DobBottomSheet } from '../../lib/components/DobBottomSheet'
 import {
   INTERESTS_LIST, INTERESTS_BY_CATEGORY, INTEREST_CATEGORY_PALETTE, INTEREST_TO_CATEGORY,
   LANGUAGES_LIST, CITIES, MOCK_COMMUNITY_EVENTS, MOCK_EVENTS,
@@ -68,47 +70,6 @@ const uploadPhotoToStorage = async (base64: string, userId: string, slot: number
 }
 
 // ─── AURORA BACKGROUND ────────────────────────────────────────────────────────
-
-function AuroraBg({ width, height }: { width: number; height: number }) {
-  const a1 = useRef(new Animated.Value(0)).current
-  const a2 = useRef(new Animated.Value(0)).current
-  const a3 = useRef(new Animated.Value(0)).current
-  useEffect(() => {
-    const loop = (val: Animated.Value, dur: number) =>
-      Animated.loop(Animated.sequence([
-        Animated.timing(val, { toValue: 1, duration: dur, useNativeDriver: true }),
-        Animated.timing(val, { toValue: 0, duration: dur, useNativeDriver: true }),
-      ])).start()
-    loop(a1, 7000)
-    loop(a2, 11000)
-    loop(a3, 9000)
-  }, [])
-  return (
-    <View style={{ position: 'absolute', top: 0, left: 0, width, height, pointerEvents: 'none' }}>
-      <Animated.View style={{
-        position: 'absolute', top: height * 0.06, left: -width * 0.1, right: -width * 0.1, height: 140,
-        opacity: a1.interpolate({ inputRange: [0, 1], outputRange: [0.10, 0.22] }),
-        transform: [{ scaleX: a1.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1.08] }) }],
-      }}>
-        <LinearGradient colors={['transparent', 'rgba(139,92,246,0.7)', 'transparent']} style={{ flex: 1, borderRadius: 70 }} />
-      </Animated.View>
-      <Animated.View style={{
-        position: 'absolute', top: height * 0.18, left: -width * 0.15, right: -width * 0.05, height: 110,
-        opacity: a2.interpolate({ inputRange: [0, 1], outputRange: [0.07, 0.18] }),
-        transform: [{ scaleX: a2.interpolate({ inputRange: [0, 1], outputRange: [1.1, 0.85] }) }],
-      }}>
-        <LinearGradient colors={['transparent', 'rgba(6,182,212,0.65)', 'transparent']} style={{ flex: 1, borderRadius: 55 }} />
-      </Animated.View>
-      <Animated.View style={{
-        position: 'absolute', top: height * 0.30, left: -width * 0.05, right: -width * 0.12, height: 90,
-        opacity: a3.interpolate({ inputRange: [0, 1], outputRange: [0.06, 0.14] }),
-        transform: [{ scaleX: a3.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] }) }],
-      }}>
-        <LinearGradient colors={['transparent', 'rgba(139,92,246,0.5)', 'transparent']} style={{ flex: 1, borderRadius: 45 }} />
-      </Animated.View>
-    </View>
-  )
-}
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 
@@ -1118,153 +1079,6 @@ function AnimatedInterestChip({ item, isOn, onPress, palette }: {
         <Text style={{ fontSize: 13, fontFamily: 'Outfit-SemiBold', color: isOn ? palette.text : '#64748B' }}>{label}</Text>
       </Animated.View>
     </TouchableOpacity>
-  )
-}
-
-function WheelColumn({ data, value, onChange, width }: {
-  data: { label: string; value: number }[]
-  value: number
-  onChange: (v: number) => void
-  width: number
-}) {
-  const ITEM_HEIGHT = 44
-  const VISIBLE = 5
-  const HEIGHT = ITEM_HEIGHT * VISIBLE
-  const listRef = useRef<FlatList<{ label: string; value: number }>>(null)
-  const initialIdx = Math.max(0, data.findIndex(d => d.value === value))
-  const [activeIdx, setActiveIdx] = useState(initialIdx)
-
-  useEffect(() => {
-    const idx = Math.max(0, data.findIndex(d => d.value === value))
-    setActiveIdx(idx)
-    const t = setTimeout(() => listRef.current?.scrollToOffset({ offset: idx * ITEM_HEIGHT, animated: false }), 30)
-    return () => clearTimeout(t)
-  }, [data.length])
-
-  return (
-    <View style={{ width, height: HEIGHT, position: 'relative' }}>
-      <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: ITEM_HEIGHT * 2, height: ITEM_HEIGHT, backgroundColor: 'rgba(99,102,241,0.07)', borderRadius: 12, zIndex: 0 }} />
-      <FlatList
-        ref={listRef}
-        data={data}
-        keyExtractor={(_, i) => String(i)}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={ITEM_HEIGHT}
-        decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * 2 }}
-        getItemLayout={(_, i) => ({ length: ITEM_HEIGHT, offset: ITEM_HEIGHT * i, index: i })}
-        scrollEventThrottle={16}
-        onScroll={e => {
-          const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT)
-          if (idx !== activeIdx && idx >= 0 && idx < data.length) setActiveIdx(idx)
-        }}
-        onMomentumScrollEnd={e => {
-          const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT)
-          const clamped = Math.max(0, Math.min(data.length - 1, idx))
-          setActiveIdx(clamped)
-          onChange(data[clamped].value)
-        }}
-        renderItem={({ item, index }) => {
-          const active = index === activeIdx
-          return (
-            <View style={{ height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ fontSize: active ? 20 : 16, fontFamily: active ? 'Outfit-SemiBold' : 'Outfit-Regular', color: active ? '#1E1B4B' : '#94A3B8', opacity: active ? 1 : 0.5 }}>{item.label}</Text>
-            </View>
-          )
-        }}
-      />
-    </View>
-  )
-}
-
-function DobBottomSheet({ initialDay, initialMonth, initialYear, onClose, onConfirm }: {
-  initialDay: number
-  initialMonth: number
-  initialYear: number
-  onClose: () => void
-  onConfirm: (day: number, month: number, year: number) => void
-}) {
-  const sheetInsets = useSafeAreaInsets()
-  const [day, setDay] = useState(initialDay)
-  const [month, setMonth] = useState(initialMonth)
-  const [year, setYear] = useState(initialYear)
-  const slide = useRef(new Animated.Value(0)).current
-  const backdrop = useRef(new Animated.Value(0)).current
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(slide,    { toValue: 1, duration: 280, useNativeDriver: true }),
-      Animated.timing(backdrop, { toValue: 1, duration: 280, useNativeDriver: true }),
-    ]).start()
-  }, [])
-
-  const closeWithAnim = () => {
-    Animated.parallel([
-      Animated.timing(slide,    { toValue: 0, duration: 220, useNativeDriver: true }),
-      Animated.timing(backdrop, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => onClose())
-  }
-
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const YEARS  = Array.from({ length: 2008 - 1940 + 1 }, (_, i) => 1940 + i)
-  const daysInMonth = new Date(year, month, 0).getDate()
-  const DAYS = Array.from({ length: daysInMonth }, (_, i) => i + 1)
-
-  useEffect(() => {
-    if (day > daysInMonth) setDay(daysInMonth)
-  }, [daysInMonth])
-
-  const today = new Date()
-  let calcAge = today.getFullYear() - year
-  if (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day)) calcAge--
-  const isAdult = calcAge >= 18
-
-  return (
-    <Modal visible transparent animationType="none" onRequestClose={closeWithAnim} statusBarTranslucent>
-      <Animated.View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', opacity: backdrop, justifyContent: 'flex-end' }}>
-        <TouchableOpacity activeOpacity={1} onPress={closeWithAnim} style={{ flex: 1 }} />
-        <Animated.View style={{
-          backgroundColor: '#fff',
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 28,
-          paddingTop: 12,
-          paddingBottom: Math.max(sheetInsets.bottom + 16, 32),
-          paddingHorizontal: 20,
-          shadowColor: '#0F172A',
-          shadowOpacity: 0.18,
-          shadowRadius: 28,
-          shadowOffset: { width: 0, height: -6 },
-          elevation: 16,
-          transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [500, 0] }) }],
-        }}>
-          <View style={{ width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
-          <Text style={{ fontSize: 20, fontFamily: 'Outfit-SemiBold', color: '#1E1B4B', textAlign: 'center', marginBottom: 4 }}>Date of birth</Text>
-          <Text style={{ fontSize: 13, fontFamily: 'Outfit-Regular', color: '#94A3B8', textAlign: 'center', marginBottom: 18 }}>Pick day, month and year</Text>
-
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
-            <WheelColumn data={DAYS.map(d => ({ label: String(d), value: d }))} value={day} onChange={setDay} width={66} />
-            <WheelColumn data={MONTHS.map((m, i) => ({ label: m, value: i + 1 }))} value={month} onChange={setMonth} width={86} />
-            <WheelColumn data={YEARS.map(y => ({ label: String(y), value: y }))} value={year} onChange={setYear} width={86} />
-          </View>
-
-          {!isAdult && (
-            <Text style={{ fontSize: 13, fontFamily: 'Outfit-Medium', color: '#EF4444', textAlign: 'center', marginTop: 14 }}>
-              You must be 18 or older to use Parea
-            </Text>
-          )}
-
-          <TouchableOpacity
-            onPress={() => { if (isAdult) { onConfirm(day, month, year); closeWithAnim() } }}
-            disabled={!isAdult}
-            activeOpacity={0.85}
-            style={{ marginTop: 18, opacity: isAdult ? 1 : 0.5, borderRadius: 16, overflow: 'hidden' }}>
-            <LinearGradient colors={['#8B5CF6', '#F97316']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, fontFamily: 'Outfit-SemiBold', color: '#fff', letterSpacing: 0.2 }}>Confirm</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
   )
 }
 
