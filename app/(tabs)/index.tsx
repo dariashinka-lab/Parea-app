@@ -2151,11 +2151,16 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
     }
     return true
   }).sort((a, b) => {
-    const aVibe = vibeCats.includes(a.category) ? 2 : 0
-    const bVibe = vibeCats.includes(b.category) ? 2 : 0
-    const aInt = userCategories.includes(a.category) ? 1 : 0
-    const bInt = userCategories.includes(b.category) ? 1 : 0
-    return (bVibe + bInt) - (aVibe + aInt)
+    // Promoted always at the top
+    if (a.is_promoted && !b.is_promoted) return -1
+    if (!a.is_promoted && b.is_promoted) return 1
+    // Otherwise strict date ascending — earliest upcoming first.
+    const da = parseEventDate(a.date_label || a.time || '')
+    const db = parseEventDate(b.date_label || b.time || '')
+    if (!da && !db) return 0
+    if (!da) return 1
+    if (!db) return -1
+    return da.getTime() - db.getTime()
   })
 
   // ── For You scoring ───────────────────────────────────────────────────────
@@ -2721,7 +2726,7 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                     <X size={18} color="#6366F1" />
                   </TouchableOpacity>
                 </View>
-                <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }} showsVerticalScrollIndicator>
                   {officialEvents.map((ev: any) => (
                     <TouchableOpacity key={ev.id} onPress={() => { setShowAllOfficialModal(false); setTimeout(() => onEventPress(ev), 300) }} activeOpacity={0.88}
                       style={{ backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', flexDirection: 'row', shadowColor: '#6366F1', shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 }}>
