@@ -923,12 +923,12 @@ function RegistrationScreen({ onBack, onSendOtp, onGoogleSignIn, onAppleSignIn }
                 <Text style={{ flex: 1, fontSize: 12, color: '#6B7280', lineHeight: 18, fontFamily: 'Outfit-Regular' }}>
                   {'I have read and agree to the '}
                   <Text style={{ color: '#8B5CF6', fontFamily: 'Outfit-SemiBold' }}
-                    onPress={() => WebBrowser.openBrowserAsync('https://averinpa.github.io/parea-app/terms')}>
+                    onPress={() => WebBrowser.openBrowserAsync('https://joinparea.app/terms')}>
                     Terms of Service
                   </Text>
                   {' and '}
                   <Text style={{ color: '#8B5CF6', fontFamily: 'Outfit-SemiBold' }}
-                    onPress={() => WebBrowser.openBrowserAsync('https://averinpa.github.io/parea-app/privacy')}>
+                    onPress={() => WebBrowser.openBrowserAsync('https://joinparea.app/privacy')}>
                     Privacy Policy
                   </Text>
                   {'. I confirm I am 18 years of age or older.'}
