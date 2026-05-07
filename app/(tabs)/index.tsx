@@ -35,6 +35,7 @@ import { AnimatedInterestChip } from '../../lib/components/AnimatedInterestChip'
 import { ReportModal } from '../../lib/components/ReportModal'
 import { ProfilePreviewSheet } from '../../lib/components/ProfilePreviewSheet'
 import { LocationPicker } from '../../lib/components/LocationPicker'
+import { s } from '../../lib/feed-styles'
 import { INTEREST_ICON_MAP } from '../../lib/interest-icons'
 import {
   INTERESTS_LIST, INTERESTS_BY_CATEGORY, INTEREST_CATEGORY_PALETTE, INTEREST_TO_CATEGORY,
@@ -47,7 +48,7 @@ import {
   QUEUE_PROFILES, VIBE_FORMAT_MAX, VIBE_FORMAT_THRESHOLD, VIBE_FORMAT_LABEL, GOAL_LABEL,
   REPORT_REASONS, CREATE_EVENT_TYPES, CITY_CENTERS,
 } from '../../lib/feed-constants'
-import { prettyEventTime, scoreRequesterForHost, scoreEventForRequester, MAX_AGE_GAP } from '../../lib/feed-helpers'
+import { prettyEventTime, scoreRequesterForHost, scoreEventForRequester, MAX_AGE_GAP, parseEventDate, parseEventDateTime, isEventPast } from '../../lib/feed-helpers'
 
 const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || ''
 
@@ -2016,66 +2017,6 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
   }, [])
 
   // Parse event time string → Date (for calendar matching)
-  const parseEventDate = (timeStr: string): Date | null => {
-    if (!timeStr) return null
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const lower = timeStr.toLowerCase()
-    if (lower.startsWith('today')) return today
-    if (lower.startsWith('tomorrow')) { const d = new Date(today); d.setDate(d.getDate() + 1); return d }
-    // Format: "2026-03-31" (ISO, from community event createDay)
-    const isoMatch = timeStr.match(/(\d{4})-(\d{2})-(\d{2})/)
-    if (isoMatch) {
-      const d = new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]))
-      d.setHours(0, 0, 0, 0)
-      return d
-    }
-    // Format: "26/03/2026" or "26.03.2026" — check before day-of-week
-    const dmyMatch = timeStr.match(/(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})/)
-    if (dmyMatch) {
-      const d = new Date(parseInt(dmyMatch[3]), parseInt(dmyMatch[2]) - 1, parseInt(dmyMatch[1]))
-      d.setHours(0, 0, 0, 0)
-      return d
-    }
-    // Format: "Thursday, 26 March 2026" or "26 March 2026" — check before day-of-week
-    const monthMap: Record<string, number> = { january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11 }
-    const longMatch = timeStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/)
-    if (longMatch) {
-      const month = monthMap[longMatch[2].toLowerCase()]
-      if (month !== undefined) {
-        const d = new Date(parseInt(longMatch[3]), month, parseInt(longMatch[1]))
-        d.setHours(0, 0, 0, 0)
-        return d
-      }
-    }
-    // Format: "Sat, 20:30" or "Mon" — day of week (relative)
-    const dayMap: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 }
-    const prefix = lower.slice(0, 3)
-    if (prefix in dayMap) {
-      const d = new Date(today)
-      const diff = ((dayMap[prefix] - d.getDay()) + 7) % 7 || 7
-      d.setDate(d.getDate() + diff)
-      return d
-    }
-    return null
-  }
-
-  const parseEventDateTime = (timeStr: string): Date | null => {
-    const date = parseEventDate(timeStr)
-    if (!date) return null
-    const match = timeStr.match(/(\d{1,2}):(\d{2})/)
-    if (match) {
-      date.setHours(parseInt(match[1], 10), parseInt(match[2], 10), 0, 0)
-    } else {
-      date.setHours(23, 59, 59, 0)
-    }
-    return date
-  }
-
-  const isEventPast = (timeStr: string): boolean => {
-    const dt = parseEventDateTime(timeStr)
-    if (!dt) return false
-    return dt < new Date()
-  }
   const allCityEvents = [...MOCK_EVENTS, ...(extraEvents || [])].filter(e => {
     if (city && e.city !== city) return false
     if (e.isHosted) return false  // host doesn't join their own event
@@ -3186,9 +3127,20 @@ function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, use
   }
 
   const now = Date.now()
-  const myEvents = [...MOCK_EVENTS, ...allEvents.filter((e: any) => e._fromDb || e.type === 'community')].filter(ev => ['joined', 'pending', 'confirmed'].includes(joinedEvents[ev.id]) && (!ev.expiresAt || ev.expiresAt > now))
-  const activeHostedEvents = hostedEvents.filter(ev => !ev.expiresAt || ev.expiresAt > now)
-  const expiredHostedEvents = hostedEvents.filter(ev => ev.expiresAt && ev.expiresAt <= now)
+  // expiresAt > now is the primary check, but old events stored without expiresAt
+  // (or with expiresAt=0 because the time string couldn't be parsed at fetch time)
+  // need a fallback parse from `time` so a yesterday's event doesn't sit forever.
+  // Official events keep their date in `date_label` and `time` is often a placeholder
+  // like "-", so check both before falling back to "show it".
+  const eventDateStr = (ev: any) => ev.date_label || ev.time || ''
+  const isExpiredEv = (ev: any) => ev.expiresAt ? ev.expiresAt <= now : isEventPast(eventDateStr(ev))
+  const joinedAll = [...MOCK_EVENTS, ...allEvents.filter((e: any) => e._fromDb || e.type === 'community')]
+    .filter(ev => ['joined', 'pending', 'confirmed'].includes(joinedEvents[ev.id]))
+  const myEvents = joinedAll.filter(ev => !isExpiredEv(ev))
+  const expiredJoinedEvents = joinedAll.filter(ev => isExpiredEv(ev))
+  const activeHostedEvents = hostedEvents.filter(ev => !isExpiredEv(ev))
+  const expiredHostedEvents = hostedEvents.filter(ev => isExpiredEv(ev))
+  const expiredAllEvents = [...expiredHostedEvents, ...expiredJoinedEvents.filter(je => !expiredHostedEvents.some(he => he.id === je.id))]
 
   const FORMAT_CHIP: Record<string, { emoji: string; label: string; color: string }> = {
     '1+1':   { emoji: '👥', label: 'Duo',   color: '#f472b6' },
@@ -3321,27 +3273,49 @@ function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, use
               )}
             </View>
           )}
-          {/* Expired hosted events — show only for cleanup */}
-          {expiredHostedEvents.length > 0 && (
+          {/* Expired events (hosted + joined) — show for cleanup */}
+          {expiredAllEvents.length > 0 && (
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
                 <Clock size={12} color="#94A3B8" />
                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, textTransform: 'uppercase' }}>Expired</Text>
               </View>
-              {expiredHostedEvents.map((ev: any) => (
-                <View key={ev.id} style={{ borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.04)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#94A3B8', flex: 1 }} numberOfLines={1}>{ev.title}</Text>
-                  <TouchableOpacity
-                    onPress={() => onCancelHostedEvent?.(ev)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Feather name="trash-2" size={16} color="#94A3B8" />
-                  </TouchableOpacity>
-                </View>
-              ))}
+              {expiredAllEvents.map((ev: any) => {
+                const isHosted = expiredHostedEvents.some(he => he.id === ev.id)
+                const dateStr = ev.date_label || ev.time || ''
+                const expiredAt = ev.expiresAt || (parseEventDateTime(dateStr)?.getTime() ?? 0)
+                const ago = (() => {
+                  if (!expiredAt) return ''
+                  const diffMs = Date.now() - expiredAt
+                  const days = Math.floor(diffMs / 86400000)
+                  if (days > 0) return `${days}d ago`
+                  const hours = Math.floor(diffMs / 3600000)
+                  if (hours > 0) return `${hours}h ago`
+                  const mins = Math.floor(diffMs / 60000)
+                  return mins > 0 ? `${mins}m ago` : 'just now'
+                })()
+                return (
+                  <View key={ev.id} style={{ borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.04)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}>
+                    <Text style={{ fontSize: 18 }}>{CATEGORY_EMOJI[ev.category] || '📅'}</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B' }} numberOfLines={1}>{ev.title}</Text>
+                      <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }} numberOfLines={1}>
+                        {prettyEventTime(dateStr) || 'Past event'}{ago ? ` · ${ago}` : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => isHosted ? onCancelHostedEvent?.(ev) : onLeaveEvent?.(ev)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Feather name="trash-2" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
+                )
+              })}
             </View>
           )}
-          {myEvents.length === 0 && activeHostedEvents.length === 0 && expiredHostedEvents.length === 0 ? (
+          {myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
             <View style={{ alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 }}>
               <LinearGradient colors={['#6366F1', '#818CF8']} style={{ width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                 <CalendarDays size={32} color="#fff" />
@@ -3948,9 +3922,11 @@ function RockingTransportPill({ transport }: { transport: string }) {
 
 function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEventTransport, onGoHome, onConfirm, onLeave, hostedEvents = [], pendingJoinRequests = {}, approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onApproveJoiner, onRejectJoiner, onPassJoiner, passedRequests = {}, userData, tonightVibe, onGoToMessages, eventAttendeesMap = {}, communityEventMembers = {}, incomingCrewInvites = [], sentCrewInvites = {}, onAcceptInvite, onDeclineInvite, onCancelHostedEvent, readyCountMap = {}, crewPreviewMap = {}, onJoinCrew, officialEventChatMap = {}, topInset = 0, onBlockUser, onReportUser }: any) {
   // Official + approved community events — shown as crew cards
+  const notExpired = (e: any) => e.expiresAt ? e.expiresAt > Date.now() : !isEventPast(e.date_label || e.time || '')
   const myEvents = (allEvents || []).filter((e: any) => {
     const status = joinedEvents?.[e.id]
     if (!status || e.isHosted) return false
+    if (!notExpired(e)) return false
     if (e.type === 'community') return status === 'joined'
     // Official: always show confirmed events so squad can track crew filling up
     if (status === 'confirmed') return true
@@ -3958,10 +3934,10 @@ function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEventTrans
   })
   const myApprovedCommunityEvents: any[] = [] // kept for subtitle logic only
   // Community events pending host approval — shown as waiting cards
-  const myCommunityEvents = (allEvents || []).filter((e: any) => joinedEvents?.[e.id] === 'pending' && !e.isHosted && e.type === 'community' && (!e.expiresAt || e.expiresAt > Date.now()))
+  const myCommunityEvents = (allEvents || []).filter((e: any) => joinedEvents?.[e.id] === 'pending' && !e.isHosted && e.type === 'community' && notExpired(e))
   // User-created socials the user requested to join — shown as "awaiting approval"
-  const pendingHostedEvents = (allEvents || []).filter((e: any) => joinedEvents?.[e.id] === 'pending' && e.isHosted && (!e.expiresAt || e.expiresAt > Date.now()))
-  const activeHosted = (hostedEvents || []).filter((e: any) => !e.expiresAt || e.expiresAt > Date.now())
+  const pendingHostedEvents = (allEvents || []).filter((e: any) => joinedEvents?.[e.id] === 'pending' && e.isHosted && notExpired(e))
+  const activeHosted = (hostedEvents || []).filter((e: any) => notExpired(e))
   const hasHostActivity = activeHosted.some((e: any) => (pendingJoinRequests[e.id] || []).length > 0)
   const [previewProfile, setPreviewProfile] = useState<any>(null)
   const [aiMatches, setAiMatches] = useState<MatchResult[]>([])
@@ -8735,23 +8711,28 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               {(() => {
                 const allKnownEvs = [...MOCK_EVENTS, ...MOCK_COMMUNITY_EVENTS, ...feedOfficialDbEvents, ...dbCommunityEvents, ...userCreatedEvents]
                 const now = Date.now()
+                // Official events have date in date_label and time="-", so fall back to
+                // parsing the visible date string when expiresAt isn't set.
+                const isExpired = (ev: any) => ev.expiresAt
+                  ? ev.expiresAt <= now
+                  : isEventPast(ev.date_label || ev.time || '')
                 // Only official events trigger Vibe Check (joiners use it to find crew). Community events handled in chats.
                 const hasActiveJoined = Object.entries(joinedEvents).some(([id, v]) => {
                   if (!v) return false
                   const ev = allKnownEvs.find(e => e.id === Number(id))
                   if (!ev) return false
                   if (ev.type !== 'official') return false
-                  if (ev.expiresAt && ev.expiresAt <= now) return false
+                  if (isExpired(ev)) return false
                   return true
                 })
                 const hasPending = Object.entries(pendingJoinRequests).some(([evId, reqs]) => {
                   if (!reqs.length) return false
                   const ev = userCreatedEvents.find((e: any) => e.id === Number(evId))
                   if (!ev) return false
-                  if (ev.expiresAt && ev.expiresAt <= now) return false
+                  if (isExpired(ev)) return false
                   return true
                 })
-                const hasHostActivity = userCreatedEvents.some((ev: any) => (!ev.expiresAt || ev.expiresAt > now) && (approvedJoiners[ev.id] || []).length < (ev.maxParticipants || 5) - 1)
+                const hasHostActivity = userCreatedEvents.some((ev: any) => !isExpired(ev) && (approvedJoiners[ev.id] || []).length < (ev.maxParticipants || 5) - 1)
                 if (!(hasActiveJoined || hasPending || hasHostActivity)) return null
                 return <View style={{ position: 'absolute', top: -3, right: -5, width: 8, height: 8, borderRadius: 4, backgroundColor: hasPending ? '#FFD700' : '#43E97B', borderWidth: 1.5, borderColor: '#F8F7FF' }} />
               })()}
@@ -9881,11 +9862,21 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           const chatId = openChat.id
                           const evId = openChat.communityEventId
                           if (evId && !openChat.hostEventId && userData?.dbId) {
-                            // Удаляем join_request + пишем системное сообщение
+                            // Удаляем join_request
                             supabase.from('join_requests').delete().eq('event_id', evId).eq('requester_id', userData.dbId)
                               .then(({ error }) => { if (error) console.warn('leave join_request error:', error.message) })
+                            // Удаляем chat_members чтобы realtime не восстановил чат
+                            if (typeof chatId === 'number' && chatId < 1e12) {
+                              supabase.from('chat_members')
+                                .delete().eq('chat_id', chatId).eq('profile_id', userData.dbId)
+                                .then(({ error }) => { if (error) console.warn('leave chat_members delete error:', error.message) })
+                            }
+                            // Системное сообщение — может упасть с FK error если событие уже удалено, это ок
                             supabase.from('messages').insert({ community_event_id: evId, sender_id: userData.dbId, text: `${userData.name || 'Someone'} left the group` })
                               .then(({ error }) => { if (error) console.warn('leave msg error:', error.message) })
+                            // Блок-лист чтобы fallback-поллинг не вернул чат обратно
+                            cancelledEventIdsRef.current.add(evId)
+                            setCancelledEventIds(prev => [...new Set([...prev, evId])])
                             setJoinedEvents(prev => { const n = { ...prev }; delete n[evId]; return n })
                           }
                           setChatMessages(prev => ({
@@ -10601,239 +10592,3 @@ export default function App() {
   return <FeedScreen userData={userData} onUpdateUserData={handleUpdateUserData} onLogOut={handleLogOut} />
 }
 
-// ─── STYLES ───────────────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  fill: { flex: 1 },
-
-  // Landing
-  logoRow: { alignItems: 'center', paddingTop: 36, paddingBottom: 8 },
-  logo: { width: 200, height: 64 },
-  slideImgWrap: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  slideImg: { width: W * 0.68, height: W * 0.68 },
-  slideTextWrap: { paddingHorizontal: 28, marginBottom: 16, alignItems: 'center' },
-  slideTitle: { fontSize: 30, fontWeight: '800', letterSpacing: -0.8, marginBottom: 10, lineHeight: 40, textAlign: 'center' },
-  slideSub: { fontSize: 15, lineHeight: 24, textAlign: 'center' },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 20 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  landingBtns: { paddingHorizontal: 24, paddingBottom: 32, gap: 10 },
-
-  // Buttons
-  btnPrimary: { height: 58, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#818CF8', shadowColor: '#6366F1', shadowOpacity: 0.45, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 10 },
-  btnPrimaryText: { fontSize: 17, fontWeight: '700', letterSpacing: 0.2 },
-  btnSecondary: { height: 52, borderRadius: 32, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  btnSecondaryText: { fontSize: 15, fontWeight: '600' },
-
-  // Auth
-  authTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
-  authBackBtn: { width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.5)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' },
-  authLogo: { width: 180, height: 56 },
-  authContent: { flex: 1, paddingHorizontal: 26, paddingTop: 12, paddingBottom: 44 },
-  authTitle: { fontSize: 30, fontWeight: '800', color: '#334155', letterSpacing: -0.5, marginBottom: 10 },
-  authSub: { fontSize: 15, color: '#64748B', lineHeight: 22, textAlign: 'center' },
-  tabToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 14, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
-  tabBtn: { flex: 1, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  tabBtnOn: { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  tabBtnTxt: { fontSize: 14, fontWeight: '500', color: '#94A3B8' },
-  tabBtnTxtOn: { fontSize: 14, fontWeight: '600', color: '#334155' },
-  glassInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.8)', paddingHorizontal: 18, height: 58, marginBottom: 4 },
-  glassInputText: { flex: 1, fontSize: 16, color: '#334155' },
-  socialBtn: { flex: 1, height: 56, borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.75)', backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center' },
-  socialBtnFull: { height: 56, borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.8)', backgroundColor: 'rgba(255,255,255,0.7)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  socialBtnTxt: { fontSize: 15, fontWeight: '600', color: '#1a1a1a' },
-  googleG: { width: 24, height: 24, borderRadius: 6, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' },
-  iconSocialBtn: { flex: 1, height: 60, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.85)', backgroundColor: 'rgba(255,255,255,0.75)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-
-  // Country picker
-  countryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 4 },
-  countryCode: { fontSize: 14, fontWeight: '600', color: '#334155' },
-  countryDivider: { width: 1, height: 22, backgroundColor: 'rgba(100,116,139,0.2)', marginHorizontal: 10 },
-  countryModal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 40, maxHeight: '70%' },
-  countryModalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
-  countryModalTitle: { fontSize: 16, fontWeight: '700', color: '#1E1B4B', textAlign: 'center', paddingVertical: 14 },
-  countryRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 14 },
-  countryRowName: { flex: 1, fontSize: 15, color: '#334155', fontWeight: '500' },
-  countryRowCode: { fontSize: 14, color: '#94A3B8', fontWeight: '500' },
-
-  // OTP
-  otpCell: { width: 64, height: 72, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2.5, borderBottomColor: 'rgba(99,102,241,0.25)' },
-  otpCellFilled: { borderBottomColor: '#6366F1' },
-  otpInput: { width: 64, height: 72, fontSize: 32, fontWeight: '700', color: '#1E1B4B', textAlign: 'center', backgroundColor: 'transparent' },
-
-  // Onboarding
-  onbHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 6 },
-  progressTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.5)', marginHorizontal: 20, borderRadius: 99, marginBottom: 6 },
-  progressFill: { height: 4, backgroundColor: '#818CF8', borderRadius: 99 },
-  stepScroll: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 32 },
-  stepTitle: { fontSize: 28, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.4, marginBottom: 6 },
-  stepSub: { fontSize: 14, color: '#64748B', lineHeight: 20, marginBottom: 28 },
-  label: { fontSize: 12, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
-  input: { backgroundColor: 'rgba(255,255,255,0.6)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.85)', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#334155', marginBottom: 20 },
-  bioInput: { height: 130, paddingTop: 14 },
-  charCount: { fontSize: 12, color: '#94A3B8', textAlign: 'right', marginTop: -16, marginBottom: 8 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
-  chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.55)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.8)' },
-  chipOn: { backgroundColor: '#818CF8', borderColor: '#818CF8', shadowColor: '#818CF8', shadowOpacity: 0.6, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8, boxShadow: '0 4px 16px rgba(129, 140, 248, 0.75)' } as any,
-  chipTxt: { fontSize: 14, color: '#334155', fontWeight: '500' },
-  chipTxtOn: { color: '#fff', fontWeight: '700' },
-  photosRow: { flexDirection: 'row', gap: 10, height: 240, marginBottom: 8 },
-  photoSlot: { flex: 1, borderRadius: 18, overflow: 'hidden', backgroundColor: 'rgba(185,208,235,0.4)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.75)' },
-  photoSlotMain: { flex: 1.4, borderRadius: 22, borderWidth: 2, borderColor: 'rgba(99,102,241,0.45)' },
-  photoImg: { width: '100%', height: '100%' },
-  photoCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
-  photoCheckTxt: { fontSize: 11, color: '#818CF8', fontWeight: '600' },
-  photoCropHint: { fontSize: 10, color: 'rgba(99,102,241,0.5)', textAlign: 'center', marginTop: 2 },
-  photoMainTxt: { fontSize: 10, fontWeight: '700', color: '#6366F1', opacity: 0.7, textTransform: 'uppercase', letterSpacing: 1 },
-  photoRemoveBtn: { position: 'absolute', top: 8, right: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-  verifiedBadge: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#22c55e', paddingVertical: 6, alignItems: 'center' },
-  mainBadge: { position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(99,102,241,0.88)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  bentoCard: { flex: 1, borderRadius: 22, borderWidth: 1.5, padding: 14 },
-  bentoLabel: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 },
-  bentoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6366F1', marginTop: 6 },
-  bentoFinishBtn: { borderRadius: 20, overflow: 'hidden', shadowColor: '#6366F1', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  bentoFinishBlur: { borderRadius: 20, overflow: 'hidden' },
-  bentoFinishGrad: { paddingVertical: 18, alignItems: 'center', borderRadius: 20 },
-  bentoSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: '72%', shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20, elevation: 20 },
-
-  // Join bottom sheet
-  joinSheetWrap: { backgroundColor: '#0f0c1e', borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 22, paddingTop: 14, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 32, elevation: 24 },
-  joinSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 18 },
-  joinSheetTitle: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, lineHeight: 30, marginBottom: 18 },
-  joinSheetCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 18, padding: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)' },
-  joinSheetCardOn: { backgroundColor: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.5)' },
-  joinSheetIconWrap: { width: 50, height: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
-  joinSheetCardLabel: { fontSize: 15, fontWeight: '800', color: '#fff', marginBottom: 2 },
-  joinSheetCardSub: { fontSize: 12, color: 'rgba(255,255,255,0.45)' },
-  joinSheetNext: { marginTop: 20, borderRadius: 16, backgroundColor: '#6366F1', paddingVertical: 15, alignItems: 'center' },
-  joinSheetNextTxt: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
-  bentoSheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
-  bentoSheetTitle: { fontSize: 18, fontWeight: '800', color: '#1E1B4B', marginBottom: 16, letterSpacing: -0.3 },
-  bentoSheetItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, marginBottom: 6, backgroundColor: '#F8FAFC' },
-  bentoSheetItemOn: { backgroundColor: 'rgba(99,102,241,0.08)', borderWidth: 1.5, borderColor: 'rgba(99,102,241,0.25)' },
-  bentoSheetItemTxt: { fontSize: 15, color: '#334155', fontWeight: '500', flex: 1 },
-  photoEditBtn: { position: 'absolute', bottom: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center' },
-  carRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: 'rgba(255,255,255,0.55)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.8)', borderRadius: 16, padding: 16, marginTop: 4 },
-  checkbox: { width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: 'rgba(99,102,241,0.45)', alignItems: 'center', justifyContent: 'center' },
-  checkboxOn: { backgroundColor: '#818CF8', borderColor: '#818CF8' },
-  carLabel: { fontSize: 15, fontWeight: '700', color: '#334155', marginBottom: 2 },
-  carSub: { fontSize: 12, color: '#64748B' },
-  bottomBar: { paddingHorizontal: 24, paddingTop: 8, gap: 10 },
-
-  // Feed bottom nav
-  bottomNav: { flexDirection: 'row', backgroundColor: '#fff', borderTopWidth: 0, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 12, paddingTop: 10, alignItems: 'center' },
-  navItem: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 4 },
-  navLabel: { fontSize: 10, fontWeight: '600', color: '#94A3B8' },
-  navCreateBtn: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#fff', marginTop: -24, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366F1', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
-  navCreateGrad: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  createSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 0 },
-  createTypeCard: { width: (W - 40 - 20) / 3, aspectRatio: 1, borderRadius: 20, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'transparent' },
-  createTypeCardOn: { backgroundColor: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.35)' },
-  createTypeLabel: { fontSize: 11, color: '#64748B', fontWeight: '500', textAlign: 'center' },
-
-  // Feed header
-  feedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10, backgroundColor: '#F8F7FF' },
-  cityBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(99,102,241,0.08)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(99,102,241,0.18)' },
-  cityBtnTxt: { fontSize: 13, fontWeight: '700', color: '#4338CA' },
-  bellBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(99,102,241,0.08)', alignItems: 'center', justifyContent: 'center' },
-  filterScroll: { backgroundColor: '#F8F7FF', height: 52 },
-  filterContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, flexDirection: 'row', alignItems: 'center' },
-  filterTab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: '#fff', borderWidth: 1.5, borderColor: 'rgba(226,232,240,0.8)' },
-  filterTabOn: { backgroundColor: '#6366F1', borderColor: '#6366F1' },
-  filterTabTxt: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  filterTabTxtOn: { color: '#fff', fontWeight: '700' },
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 20, marginBottom: 12 },
-  sectionHeader: { fontSize: 17, fontWeight: '800', color: '#1E1B4B', letterSpacing: -0.3 },
-  featuredCard: { height: 240, borderRadius: 24, padding: 16, overflow: 'hidden' },
-  officialBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
-  categoryCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  featuredTitle: { fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5, lineHeight: 30 },
-  infoPill: { backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
-  infoPillTxt: { fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-  avatarDot: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
-  avatarDotSm: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#fff' },
-  joinBtn: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)' },
-  compactCardShadow: { width: 152, borderRadius: 18, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  compactCard: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#fff' },
-  compactCardGrad: { height: 100, alignItems: 'center', justifyContent: 'center' },
-  compactCardBody: { padding: 12 },
-  compactCardTitle: { fontSize: 12, fontWeight: '700', color: '#1E1B4B', lineHeight: 17 },
-  compactCardTime: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
-  listCardShadow: { borderRadius: 18, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  listCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden' },
-  listCardLeft: { width: 72, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
-  listCardBody: { flex: 1, paddingVertical: 14, paddingLeft: 4 },
-  listCardTitle: { fontSize: 14, fontWeight: '700', color: '#1E1B4B', letterSpacing: -0.2 },
-  listCardTime: { fontSize: 12, color: '#64748B', marginTop: 2 },
-
-  // Event cards
-  officialCard: { borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
-  officialCardInner: { padding: 20, minHeight: 160 },
-  officialCardCat: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
-  officialCardTitle: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: -0.4, lineHeight: 26, marginBottom: 6 },
-  officialCardTime: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 16 },
-  officialCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  communityCard: { width: (W - 44) / 2, borderRadius: 18, backgroundColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  communityCardTop: { height: 64, alignItems: 'center', justifyContent: 'center' },
-  communityCardBody: { padding: 12 },
-  communityCardTitle: { fontSize: 14, fontWeight: '700', color: '#1E1B4B', lineHeight: 19, marginBottom: 4 },
-  communityCardTime: { fontSize: 11, color: '#64748B' },
-  seekerDot: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: '#fff' },
-  seekerDotSm: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#fff' },
-  slotBadge: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
-  slotBadgeTxt: { fontSize: 11, fontWeight: '700', color: '#fff' },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  cityPickerSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  cityPickerTitle: { fontSize: 16, fontWeight: '800', color: '#1E1B4B', marginBottom: 16, textAlign: 'center' },
-  cityPickerItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 8, borderRadius: 12 },
-
-  // Event detail
-  detailHeader: { padding: 20, paddingTop: 56, paddingBottom: 24, flexDirection: 'row', alignItems: 'flex-start' },
-  detailBackBtn: { width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12, marginTop: 2 },
-  organizerBlock: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 16, marginBottom: 4, backgroundColor: '#fff', borderRadius: 14, padding: 12, gap: 10, borderWidth: 1, borderColor: 'rgba(99,102,241,0.12)', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  organizerLogoWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(99,102,241,0.08)', alignItems: 'center', justifyContent: 'center' },
-  orgVerifiedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)' },
-  ticketBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#6366F1', borderRadius: 12, paddingVertical: 11, backgroundColor: 'rgba(99,102,241,0.05)' },
-
-  // Seekers
-  seekerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  seekerPhoto: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#E2E8F0' },
-  formatBadge: { position: 'absolute', bottom: -2, right: -4, borderRadius: 99, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1.5, borderColor: '#fff' },
-  passBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
-  vibeBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(129,140,248,0.12)', alignItems: 'center', justifyContent: 'center' },
-
-  // Match
-  matchOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  matchCard: { backgroundColor: '#fff', borderRadius: 28, padding: 28, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 32, shadowOffset: { width: 0, height: 12 }, elevation: 12 },
-  matchAvatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-
-  // Chat list
-  chatCard: { backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.95)', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  chatAvatar: { width: 52, height: 52, borderRadius: 26, overflow: 'hidden' },
-  chatAvatarOverlap: { position: 'absolute', width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: '#fff' },
-
-  // Sub tabs
-  subTabRow: { flexDirection: 'row', backgroundColor: 'rgba(99,102,241,0.07)', borderRadius: 14, padding: 4, marginBottom: 4, borderWidth: 1, borderColor: 'rgba(99,102,241,0.12)' },
-  subTab: { flex: 1, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  subTabOn: { backgroundColor: '#fff', shadowColor: '#6366F1', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  subTabTxt: { fontSize: 13, fontWeight: '500', color: '#94A3B8' },
-  subTabTxtOn: { fontSize: 13, fontWeight: '700', color: '#4338CA' },
-
-  // Chat screen
-  chatHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12, backgroundColor: '#fff', gap: 4 },
-  chatHeaderAvatar: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', marginLeft: 8 },
-  msgBubbleMe: { backgroundColor: '#6366F1', borderRadius: 18, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10 },
-  msgBubbleThem: { backgroundColor: '#fff', borderRadius: 18, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, padding: 12, paddingBottom: 24, backgroundColor: 'rgba(255,255,255,0.9)', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)' },
-  chatInput: { flex: 1, backgroundColor: '#F1F5F9', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: '#334155', maxHeight: 100 },
-  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-
-  // Profile
-  profileAvatar: { width: 110, height: 110, borderRadius: 55, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: '#fff', shadowColor: '#6366F1', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  profileSectionTitle: { fontSize: 13, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: 0.8 },
-  profileChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, backgroundColor: 'rgba(99,102,241,0.08)', borderWidth: 1, borderColor: 'rgba(99,102,241,0.15)' },
-  profileChipTxt: { fontSize: 13, color: '#4338CA', fontWeight: '600' },
-  profileActionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 2, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-})

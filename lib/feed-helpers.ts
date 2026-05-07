@@ -1,5 +1,73 @@
 // Pure helper functions extracted from index.tsx (Stage 1 of refactor).
 
+// Parse a Parea event time string into a Date (date only, hours zeroed).
+// Supports the formats produced across the app:
+//   • ISO date: "2026-03-31" (from createDay)
+//   • DMY: "26/03/2026" or "26.03.2026"
+//   • Long: "Thursday, 26 March 2026" or "26 March 2026"
+//   • Relative: "today", "tomorrow", or short weekday like "Sat" / "Mon"
+// Returns null when nothing matches.
+export function parseEventDate(timeStr: string): Date | null {
+  if (!timeStr) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const lower = timeStr.toLowerCase()
+  if (lower.startsWith('today')) return today
+  if (lower.startsWith('tomorrow')) { const d = new Date(today); d.setDate(d.getDate() + 1); return d }
+  const isoMatch = timeStr.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    const d = new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]))
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const dmyMatch = timeStr.match(/(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})/)
+  if (dmyMatch) {
+    const d = new Date(parseInt(dmyMatch[3]), parseInt(dmyMatch[2]) - 1, parseInt(dmyMatch[1]))
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const monthMap: Record<string, number> = { january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11 }
+  const longMatch = timeStr.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/)
+  if (longMatch) {
+    const month = monthMap[longMatch[2].toLowerCase()]
+    if (month !== undefined) {
+      const d = new Date(parseInt(longMatch[3]), month, parseInt(longMatch[1]))
+      d.setHours(0, 0, 0, 0)
+      return d
+    }
+  }
+  const dayMap: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 }
+  const prefix = lower.slice(0, 3)
+  if (prefix in dayMap) {
+    const d = new Date(today)
+    const diff = ((dayMap[prefix] - d.getDay()) + 7) % 7 || 7
+    d.setDate(d.getDate() + diff)
+    return d
+  }
+  return null
+}
+
+// Same as parseEventDate but also reads "HH:MM" if present, otherwise sets to
+// end of day so isEventPast doesn't drop a date-only event mid-day.
+export function parseEventDateTime(timeStr: string): Date | null {
+  const date = parseEventDate(timeStr)
+  if (!date) return null
+  const match = timeStr.match(/(\d{1,2}):(\d{2})/)
+  if (match) {
+    date.setHours(parseInt(match[1], 10), parseInt(match[2], 10), 0, 0)
+  } else {
+    date.setHours(23, 59, 59, 0)
+  }
+  return date
+}
+
+// True if the parsed event time is before now. Returns false for unparseable
+// strings — keep the event visible rather than risk hiding something valid.
+export function isEventPast(timeStr: string): boolean {
+  const dt = parseEventDateTime(timeStr)
+  if (!dt) return false
+  return dt < new Date()
+}
+
 export const prettyEventTime = (s: string | undefined | null) => {
   if (!s) return s
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
