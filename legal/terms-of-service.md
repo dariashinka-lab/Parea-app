@@ -33,7 +33,7 @@ We reserve the right to terminate any account where we have reasonable grounds t
 - You may hold only one account per person
 - Account sharing or transferring your account to another person is not permitted
 - You are responsible for all activity that occurs under your account
-- Notify us immediately at support@parea.app if you believe your account has been compromised
+- Notify us immediately at support@joinparea.app if you believe your account has been compromised
 
 ---
 
@@ -79,7 +79,7 @@ You are solely responsible for Your Content. You confirm that:
 - Your Content complies with these Terms
 
 ### Content Moderation
-Photos and content you upload may be reviewed by automated systems (including AI) for compliance with these Terms. We may remove any content that violates these Terms without prior notice. If your photo is rejected, you may appeal to privacy@parea.app for a human review.
+Photos and content you upload may be reviewed by automated systems (including AI) for compliance with these Terms. We may remove any content that violates these Terms without prior notice. If your photo is rejected, you may appeal to privacy@joinparea.app for a human review.
 
 ---
 
@@ -101,7 +101,7 @@ Parea connects people around local events and activities. Please be aware:
 - Parea does not verify the identity of any user
 - You are solely responsible for your own safety when attending events or meeting other users
 - Always meet in public places initially and inform someone you trust of your plans
-- If you experience any concerning behaviour, report it to us immediately via the in-app report function or at support@parea.app
+- If you experience any concerning behaviour, report it to us immediately via the in-app report function or at support@joinparea.app
 
 ---
 
@@ -112,7 +112,7 @@ Your use of Parea is governed by our **Privacy Policy**, which explains what per
 Please read the Privacy Policy carefully. By using Parea, you acknowledge that you have read and understood it.
 
 Privacy Policy: available in the app under **Settings → Privacy Policy**
-Contact: privacy@parea.app
+Contact: privacy@joinparea.app
 
 ---
 
@@ -193,10 +193,10 @@ If the changes affect consent-based processing, we will ask for your renewed con
 
 For questions about these Terms:
 
-**Email:** support@parea.app
+**Email:** support@joinparea.app
 **App:** Settings → Help → Contact Us
 
-For privacy-related matters: privacy@parea.app
+For privacy-related matters: privacy@joinparea.app
 
 ---
 

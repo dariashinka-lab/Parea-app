@@ -13,9 +13,9 @@ Parea ("we", "us", "our") is a social event mobile application operated from the
 **Data Controller:**
 Parea
 Cyprus
-Contact: privacy@parea.app
+Contact: privacy@joinparea.app
 
-If you have any questions about how we handle your personal data, please contact us at **privacy@parea.app**. We will respond within 30 calendar days.
+If you have any questions about how we handle your personal data, please contact us at **privacy@joinparea.app**. We will respond within 30 calendar days.
 
 ---
 
@@ -86,13 +86,13 @@ We use **Claude Haiku**, an AI model operated by **Anthropic, PBC** (United Stat
 ### Your rights regarding AI matching
 Under Article 22 of the GDPR, because our AI produces suggestions that affect which users and events appear in your feed, you have the right to:
 
-- **Request human review** of any matching outcome by contacting privacy@parea.app
+- **Request human review** of any matching outcome by contacting privacy@joinparea.app
 - **Object to profiling** at any time — use the toggle in **Settings → Privacy → AI Matching**. Disabling AI matching means you will still see events in your city but without personalised companion suggestions
 - **Contest any outcome** you believe is unfair or incorrect
 - **Withdraw your consent** to AI matching at any time
 
 ### Photo review
-Photos you upload are automatically reviewed by an AI system to check for content that violates our Terms of Service (such as nudity or content involving minors). If a photo is rejected, you may contact privacy@parea.app to request a human review of the decision.
+Photos you upload are automatically reviewed by an AI system to check for content that violates our Terms of Service (such as nudity or content involving minors). If a photo is rejected, you may contact privacy@joinparea.app to request a human review of the decision.
 
 ---
 
@@ -116,7 +116,7 @@ Your data is stored on Supabase servers located within the **European Union**. N
 
 When AI features are used, your profile preference data (not your name, phone, or email) is transmitted to Anthropic in the **United States**. This transfer is protected by **Standard Contractual Clauses** (Module 2 — Controller to Processor), as approved by the European Commission.
 
-You may request a copy of the applicable safeguards by contacting privacy@parea.app.
+You may request a copy of the applicable safeguards by contacting privacy@joinparea.app.
 
 ---
 
@@ -152,7 +152,7 @@ Under the GDPR and the Cyprus Data Protection Act 125(I)/2018, you have the foll
 | **Withdraw consent** | Withdraw any consent at any time via Settings → Privacy |
 | **Lodge a complaint** | Contact the Cyprus Commissioner (see below) |
 
-To exercise any right, email **privacy@parea.app**. We will respond within **30 calendar days** (extendable to 90 days for complex requests, with prior notification).
+To exercise any right, email **privacy@joinparea.app**. We will respond within **30 calendar days** (extendable to 90 days for complex requests, with prior notification).
 
 **Cyprus Commissioner for the Protection of Personal Data**
 1 Iasonos Street, 1082 Nicosia, Cyprus
@@ -187,7 +187,7 @@ The version number and "last updated" date at the top of this document will alwa
 
 For any privacy-related questions or to exercise your rights:
 
-**Email:** privacy@parea.app
+**Email:** privacy@joinparea.app
 **App:** Settings → Help → Privacy
 
 We aim to respond to all requests within 30 calendar days.
