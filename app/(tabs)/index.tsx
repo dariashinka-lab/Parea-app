@@ -4455,24 +4455,15 @@ function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEventTrans
                     <RockingTransportPill transport={transport} />
                   </View>
 
-                  {/* Confirmation deadline banner for approved community joiners */}
-                  {isCommunity && joinedEvents?.[ev.id] === 'joined' && (() => {
-                    const approvedAt = approvedAtMap[ev.id]
-                    if (!approvedAt) return null
-                    const hoursLeft = Math.max(0, Math.ceil(6 - (Date.now() - approvedAt) / 3600000))
-                    return (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(251,191,36,0.12)', borderRadius: 14, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(251,191,36,0.3)' }}>
-                        <Text style={{ fontSize: 18 }}>⏰</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: '#FBBF24' }}>Confirm your spot!</Text>
-                          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{hoursLeft}h left — tap "Open Chat" below to confirm</Text>
-                        </View>
-                      </View>
-                    )
-                  })()}
+                  {/* Confirmation deadline banner — disabled. The yellow alarm-clock
+                      reminder duplicated info shown by the green "approved, tap to
+                      confirm" block + the big green CTA button just below. The card
+                      had 5 stacked sections saying the same thing. */}
 
-                  {/* Progress — hidden in crew-list mode (data shown in crew cards instead) */}
-                  {!isCrewMode && (
+                  {/* Progress — hidden in crew-list mode (data shown in crew cards),
+                      AND for community events where the user is just approved (status
+                      'joined') so the card stays compact with just the CTA. */}
+                  {!isCrewMode && !(isCommunity && joinedEvents?.[ev.id] === 'joined') && (
                   <View style={{ marginBottom: 18 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                       <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.32)', fontWeight: '700', letterSpacing: 0.6 }}>
@@ -4674,9 +4665,11 @@ function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEventTrans
                   })() : (
                   <>
                   {/* ── Non-duo: avatar row + CTA (squad / party / community) ── */}
-                  {/* Crew-list mode replaces this whole "YOUR CREW SO FAR" avatar grid
-                      with the existing-crews list rendered below. Hidden for clarity. */}
-                  {!isCrewMode && (
+                  {/* Crew-list mode replaces this whole "YOUR CREW SO FAR" avatar grid.
+                      Also hidden for community events when user is just approved
+                      (status='joined') to avoid the cluttered "5 sections of redundant
+                      info" card before they tap Confirm. */}
+                  {!isCrewMode && !(isCommunity && joinedEvents?.[ev.id] === 'joined') && (
                   <View style={{ marginBottom: isActive ? 20 : 0 }}>
                     {(partners.length > 0) && (
                       <Text style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5, marginBottom: 12 }}>
@@ -7508,9 +7501,37 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             }
             return updated
           } else {
+            // One more pass — match by title in case the other code path created
+            // a chat without any of the event id fields set yet (race window).
+            const titleIdx = prev.findIndex((c: any) => c.type === 'group' && c.event === (ev.title || 'Your Social'))
+            if (titleIdx >= 0) {
+              const updated = [...prev]
+              const existingProfiles: any[] = updated[titleIdx].memberProfiles || []
+              const newProfiles = [...existingProfiles]
+              confirmedJoiners.forEach(joiner => {
+                if (!newProfiles.find((p: any) => p.id === joiner.id)) newProfiles.push(joiner)
+              })
+              updated[titleIdx] = {
+                ...updated[titleIdx],
+                hostEventId: evId, communityEventId: evId, eventRefId: evId,
+                members: newProfiles.length + 1,
+                memberProfiles: newProfiles,
+                avatars: newProfiles.map((p: any) => p.photo).filter(Boolean),
+                colors: newProfiles.map((p: any) => p.color),
+                lastMsg: `✅ ${confirmedJoiners[0]?.name} joined the group`,
+                time: new Date().toISOString(), isNew: true,
+              }
+              return updated
+            }
+            // Stable chat id derived from evId so two parallel setChatList calls
+            // (polling + realtime) both produce IDENTICAL chat objects → React
+            // reconciles to a single entry instead of stacking duplicates.
+            const stableLocalId = -1_000_000 - evId
+            if (prev.some((c: any) => c.id === stableLocalId)) return prev
             addNotif({ type: 'member_joined', emoji: '✅', color: '#10B981', title: `${confirmedJoiners[0]?.name} joined the group`, body: ev.title || '', chatId: 0 })
             return [{
-              id: Date.now(), type: 'group', hostEventId: evId,
+              // All three event-pointing keys so any other path's dedup matches.
+              id: stableLocalId, type: 'group', hostEventId: evId, communityEventId: evId, eventRefId: evId,
               event: ev.title || 'Your Social', eventEmoji: CATEGORY_EMOJI[ev.category || ''] || '🎉',
               members: confirmedJoiners.length + 1,
               memberProfiles: confirmedJoiners,
