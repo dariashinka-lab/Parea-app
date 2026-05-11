@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar'
 import { LinearGradient } from 'expo-linear-gradient'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Path } from 'react-native-svg'
+import * as SystemUI from 'expo-system-ui'
 import { MaskHappy, MicrophoneStage, CheckCircle as PhCheckCircle, ForkKnife } from '../phosphor-icons'
 import { AuroraBg } from '../components/AuroraBg'
 
@@ -76,6 +77,14 @@ export function LandingScreen({ onCreateAccount, onLogin, onGoogleSignIn, onAppl
 
   useEffect(() => {
     Animated.timing(logoOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start()
+    // Paint the window background dark so on Android edge-to-edge devices
+    // the 3-button nav bar area doesn't show as a white system strip
+    // (Xiaomi MIUI 11i etc). Gesture-nav phones are unaffected.
+    // Restore on unmount so the feed (light bg) doesn't inherit dark nav bar.
+    if (Platform.OS === 'android') {
+      SystemUI.setBackgroundColorAsync('#080B16').catch(() => {})
+      return () => { SystemUI.setBackgroundColorAsync('#FFFFFF').catch(() => {}) }
+    }
   }, [])
 
   useEffect(() => { runEntrance() }, [slide])
