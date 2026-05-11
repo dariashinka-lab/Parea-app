@@ -859,20 +859,15 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
             just floor at it) — Xiaomi 14 Pro gesture-nav reports ~30 already,
             so a plain Math.max(insets, 30) gave zero extra breathing room and
             the Continue still glued to the gesture pill. */}
-        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 6 : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
+        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 6) : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
           {step === TOTAL ? (
-            <View>
-              <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
-                <BlurView intensity={40} tint="light" style={s.bentoFinishBlur}>
-                  <LinearGradient colors={['#a78bfa', '#6366F1']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.bentoFinishGrad}>
-                    <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: 0.3 }}>Complete profile</Text>
-                  </LinearGradient>
-                </BlurView>
-              </TouchableOpacity>
-              <Text style={{ fontSize: 12, fontFamily: 'Outfit-Regular', color: '#94A3B8', textAlign: 'center', marginTop: 10 }}>
-                You can edit this later
-              </Text>
-            </View>
+            <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
+              <BlurView intensity={40} tint="light" style={s.bentoFinishBlur}>
+                <LinearGradient colors={['#a78bfa', '#6366F1']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.bentoFinishGrad}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: 0.3 }}>Complete profile</Text>
+                </LinearGradient>
+              </BlurView>
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity style={[s.btnPrimary, !canNext() && { opacity: 0.4 }, canNext() && { shadowColor: '#818CF8', shadowOpacity: 0.6, shadowRadius: 28, shadowOffset: { width: 0, height: 12 }, elevation: 14, boxShadow: '0 8px 32px rgba(129, 140, 248, 0.7)' } as any]} onPress={next} disabled={!canNext()}>
               <Text style={[s.btnPrimaryText, { color: '#fff' }]}>Continue</Text>
