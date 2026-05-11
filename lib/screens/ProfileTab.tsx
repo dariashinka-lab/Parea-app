@@ -94,9 +94,10 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
           uploadedPhotos[targetIdx] = publicUrl
           onUpdateUserData?.({ photos: uploadedPhotos })
         }
+        // Await DB write so Preview right after add doesn't read stale row.
         if (userData?.dbId) {
-          supabase.from('profiles').update({ photos: uploadedPhotos }).eq('id', userData.dbId)
-            .then(({ error }) => { if (error) console.warn('Photo DB update error:', error.message) })
+          const { error } = await supabase.from('profiles').update({ photos: uploadedPhotos }).eq('id', userData.dbId)
+          if (error) console.warn('Photo DB update error:', error.message)
         }
       }
     } catch { /* picker cancelled or error */ }
@@ -108,14 +109,16 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
       return
     }
     Alert.alert('Delete photo?', undefined, [
-      { text: 'Delete', style: 'destructive', onPress: () => {
+      { text: 'Delete', style: 'destructive', onPress: async () => {
         const updated = userPhotos.filter((_, i) => i !== idx)
         onUpdateUserData?.({ photos: updated })
-        if (userData?.dbId) {
-          supabase.from('profiles').update({ photos: updated }).eq('id', userData.dbId)
-            .then(({ error }) => { if (error) console.warn('Photo delete DB update error:', error.message) })
-        }
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+        // Await the DB write so any immediate follow-up (e.g. tapping Preview)
+        // reads the post-delete row, not a stale pre-delete one.
+        if (userData?.dbId) {
+          const { error } = await supabase.from('profiles').update({ photos: updated }).eq('id', userData.dbId)
+          if (error) console.warn('Photo delete DB update error:', error.message)
+        }
       }},
       { text: 'Cancel', style: 'cancel' },
     ])
@@ -153,6 +156,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
       {profilePreviewOpen && (
         <ProfilePreviewSheet
           profile={{
+            id: userData?.dbId,
             name: nm,
             age: ag,
             bio: userData?.bio || '',
@@ -162,7 +166,6 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
             color: userData?.color || '#6366F1',
             emoji: '👤',
           }}
-          skipHydrate
           onClose={() => setProfilePreviewOpen(false)}
         />
       )}

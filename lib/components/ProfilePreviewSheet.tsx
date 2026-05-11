@@ -19,9 +19,6 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
   const [hydrated, setHydrated] = useState<any>(null)
   const profile = hydrated || profileProp
   useEffect(() => {
-    // Caller already has full data (e.g. ProfileTab opening own preview) —
-    // skip the DB refetch so just-deleted photos don't reappear due to a
-    // racing read returning the pre-delete row.
     if (skipHydrate) return
     let cancelled = false
     const id = profileProp?.id
