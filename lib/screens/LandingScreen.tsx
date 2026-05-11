@@ -191,7 +191,10 @@ export function LandingScreen({ onCreateAccount, onLogin, onGoogleSignIn, onAppl
         </Animated.View>
 
         {/* ── Bottom ── */}
-        <Animated.View style={[ls.bottom, { opacity: btnOpacity, paddingBottom: insets.bottom + 8 }]}>
+        {/* On Android edge-to-edge devices with 3-button nav (Xiaomi MIUI 11i),
+            insets.bottom can report 0 even though the nav bar overlays content.
+            Floor at 24px on Android so the "Log in" link isn't hidden. */}
+        <Animated.View style={[ls.bottom, { opacity: btnOpacity, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 0) + 8 }]}>
 
           <View style={ls.dotsRow}>
             {LANDING_SLIDES.map((_, i) => (
