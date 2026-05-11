@@ -855,9 +855,11 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Android edge-to-edge: insets.bottom often = 0 with 3-button nav,
-            so floor at 30px to keep Continue clear of system buttons (Xiaomi 14 Pro). */}
-        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 30) : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
+        {/* Android edge-to-edge: always add a clear gap ABOVE the inset (not
+            just floor at it) — Xiaomi 14 Pro gesture-nav reports ~30 already,
+            so a plain Math.max(insets, 30) gave zero extra breathing room and
+            the Continue still glued to the gesture pill. */}
+        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 24 : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
           {step === TOTAL ? (
             <View>
               <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
