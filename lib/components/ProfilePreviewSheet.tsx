@@ -8,7 +8,7 @@ import { INTEREST_ICON_MAP } from '../interest-icons'
 import { FLAG_MAP, INTERESTS_BY_CATEGORY, INTEREST_CATEGORY_PALETTE, LANGUAGES_LIST } from '../feed-constants'
 import { supabase } from '../supabase'
 
-export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, onReport, inline = false }: { profile: any; onClose: () => void; onBlock?: (profile: any) => void; onReport?: (profile: any) => void; inline?: boolean }) {
+export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, onReport, inline = false, skipHydrate = false }: { profile: any; onClose: () => void; onBlock?: (profile: any) => void; onReport?: (profile: any) => void; inline?: boolean; skipHydrate?: boolean }) {
   const insets = useSafeAreaInsets()
   const screenH = Dimensions.get('window').height
   const sheetMaxH = screenH - insets.top - 16
@@ -19,6 +19,10 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
   const [hydrated, setHydrated] = useState<any>(null)
   const profile = hydrated || profileProp
   useEffect(() => {
+    // Caller already has full data (e.g. ProfileTab opening own preview) —
+    // skip the DB refetch so just-deleted photos don't reappear due to a
+    // racing read returning the pre-delete row.
+    if (skipHydrate) return
     let cancelled = false
     const id = profileProp?.id
     if (!id || typeof id !== 'string') return // skip mock profiles with non-uuid ids

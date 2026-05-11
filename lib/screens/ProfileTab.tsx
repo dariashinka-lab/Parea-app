@@ -162,6 +162,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
             color: userData?.color || '#6366F1',
             emoji: '👤',
           }}
+          skipHydrate
           onClose={() => setProfilePreviewOpen(false)}
         />
       )}
