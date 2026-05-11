@@ -855,7 +855,9 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
           </ScrollView>
         </KeyboardAvoidingView>
 
-        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 12) + 6 : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
+        {/* Android edge-to-edge: insets.bottom often = 0 with 3-button nav,
+            so floor at 30px to keep Continue clear of system buttons (Xiaomi 14 Pro). */}
+        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 30) : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
           {step === TOTAL ? (
             <View>
               <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
