@@ -3805,11 +3805,18 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
     // Broadcast: listen for instant "partner_left" from crew partner
     const broadcastChannel = supabase.channel(`crew-partner-${userData.dbId}`)
-      .on('broadcast', { event: 'partner_left' }, ({ payload }: any) => {
+      .on('broadcast', { event: 'partner_left' }, async ({ payload }: any) => {
         const evId = payload?.eventId
         if (!evId) return
         // Same logic as checkPartnerLeft but instant
         const chatIdToRemove = officialEventChatMapRef.current[evId]
+        // Multi-crew safety: if we're still in chat_members, the chat survives
+        // (someone left but our crew is intact). Don't tear down the chat.
+        if (chatIdToRemove) {
+          const { data: membership } = await supabase.from('chat_members')
+            .select('chat_id').eq('chat_id', chatIdToRemove).eq('profile_id', userData.dbId).maybeSingle()
+          if (membership) return
+        }
         const partnerChat = chatListRef.current.find((c: any) => c.id === chatIdToRemove)
         const eventTitle = partnerChat?.title || payload?.eventTitle || 'your event'
         if (chatIdToRemove) setChatList(prev => prev.filter((c: any) => c.id !== chatIdToRemove))
@@ -3845,7 +3852,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         })
         // Community events have raw IDs (<100000); official events shift +100000
         const isCommunityChat = !!chatData?.event_id && chatData.event_id < 100000
-        const isDuo = chatData?.type === 'duo' || (!isCommunityChat && members.length === 2)
+        // Trust DB type, no member-count heuristic. Multi-crew group chats may
+        // start at 2 members and grow — counting members would freeze them as duo.
+        const isDuo = chatData?.type === 'duo'
         const partner = otherMembers[0]
         const eventTitle = inviteData?.event_title || dbCommunityEventsRef.current?.find((e: any) => e.id === chatData?.event_id)?.title || feedOfficialDbEventsRef.current?.find((e: any) => e.id === chatData?.event_id)?.title || 'Crew Chat'
         const foundEv = dbCommunityEventsRef.current?.find((e: any) => e.id === chatData?.event_id) || feedOfficialDbEventsRef.current?.find((e: any) => e.id === chatData?.event_id)
@@ -4765,14 +4774,30 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     })
   }, [joinedEvents, userEventFormat])
 
-  // Watch for new chats (approvals / matches)
+  // Watch for new chats (approvals / matches). Skip during hydration window —
+  // AsyncStorage + realtime + fallback poll race and may briefly push chatList
+  // length up before dedup, triggering a "you matched" notif for already-known chats.
+  // Re-arm on every user change (logout/login) so the window applies again.
+  const chatNotifReadyRef = useRef(false)
   useEffect(() => {
-    if (chatList.length > prevChatCountRef.current && prevChatCountRef.current > 0) {
+    chatNotifReadyRef.current = false
+    prevChatCountRef.current = 0
+    const t = setTimeout(() => { chatNotifReadyRef.current = true }, 3000)
+    return () => clearTimeout(t)
+  }, [userData?.dbId])
+  useEffect(() => {
+    if (chatNotifReadyRef.current && chatList.length > prevChatCountRef.current && prevChatCountRef.current > 0) {
       const newest = chatList[0]
-      if (newest.type === 'duo') {
-        addNotif({ type: 'match', emoji: '✨', color: '#EC4899', title: `You matched with ${newest.name}!`, body: newest.event || 'Check your chats' })
-      } else {
-        addNotif({ type: 'group_chat', emoji: '🎉', color: '#10B981', title: 'Group chat is live!', body: newest.event || 'Your crew is ready' })
+      // Only notify for genuinely fresh chats (created within last 10s). Older
+      // timestamps come from AsyncStorage restore / realtime re-sync of existing chats.
+      const chatTime = new Date(newest.time || 0).getTime()
+      const isFresh = chatTime > 0 && Date.now() - chatTime < 10000
+      if (isFresh) {
+        if (newest.type === 'duo') {
+          addNotif({ type: 'match', emoji: '✨', color: '#EC4899', title: `You matched with ${newest.name}!`, body: newest.event || 'Check your chats' })
+        } else {
+          addNotif({ type: 'group_chat', emoji: '🎉', color: '#10B981', title: 'Group chat is live!', body: newest.event || 'Your crew is ready' })
+        }
       }
     }
     prevChatCountRef.current = chatList.length
@@ -5280,14 +5305,15 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         const m = payload.new
         if (m.sender_id === userData.dbId) return // своё сообщение
         if (m.text?.includes('left the group')) return // системные скипаем
-        // Найти чат по community_event_id или по chat_id (для дуо чатов)
+        // Найти чат по community_event_id или по chat_id (дуо + group)
         const chat = chatListRef.current.find(c =>
           c.communityEventId === m.community_event_id || c.hostEventId === m.community_event_id
-          || (m.chat_id && c.id === m.chat_id && c.type === 'duo')
+          || (m.chat_id && c.id === m.chat_id)
         )
         if (!chat) return
-        // Если чат сейчас открыт — его обновляет chat-specific подписка
-        if (openChatRef.current?.id === chat.id) return
+        // Don't early-return when chat is open: race between inbox and chat-specific
+        // subscriptions means either path may miss the first message. Dedup by _dbId
+        // (further down) prevents duplicates.
         // Найти имя отправителя из memberProfiles чата
         const sender = (chat.memberProfiles || []).find((p: any) => p.id === m.sender_id)
         const senderName = sender?.name || chat.name || 'Someone'
@@ -5484,6 +5510,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             onConfirm={async (ev: any, partners: any[], format: string) => {
                         const FORMAT_THRESHOLD: Record<string, number> = { '1+1': 2, squad: 3, party: 6 }
               const realPartners = partners.filter((p: any) => p._real)
+              // Official events: never fall into the community fallback below.
+              // Without real partners there's no one to match with — bail with a hint
+              // instead of creating a fake "You matched" chat.
+              if (ev.type === 'official' && realPartners.length === 0) {
+                showToast('Check back when others join', 'No one in crew pool yet ⏳', '⏳')
+                return
+              }
               if (ev.type === 'official' && realPartners.length > 0) {
                 // ── 1+1: mutual invite flow ──────────────────────────────────
                 if (format === '1+1') {
@@ -6060,19 +6093,31 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           // All remaining members left the event too — delete the chat
                           supabase.from('chat_members').delete().eq('chat_id', officialChatId)
                             .then(() => supabase.from('chats').delete().eq('id', officialChatId))
+                        } else {
+                          // Chat survives — write system message so remaining members
+                          // see "X left the group" via realtime in their open chat.
+                          supabase.from('messages').insert({
+                            chat_id: officialChatId,
+                            sender_id: userData.dbId,
+                            text: `${userData.name || 'Someone'} left the group`,
+                          }).then(({ error }) => { if (error) console.warn('leave system msg error:', error.message) })
                         }
                       }
                     })
                 }
                 supabase.from('crew_invites').update({ status: 'cancelled' }).eq('event_ref_id', ev.id).eq('inviter_id', userData.dbId).in('status', ['pending', 'accepted'])
                 supabase.from('crew_invites').update({ status: 'cancelled' }).eq('event_ref_id', ev.id).eq('invitee_id', userData.dbId).in('status', ['pending', 'accepted'])
-                // Broadcast instantly to crew partner so they don't wait 15s
+                // Broadcast "partner_left" only for duo (1+1) chats — in group
+                // crews the chat survives our exit (others stay), so we must not
+                // trigger the receiver's chat teardown.
                 const partnerChatId = officialEventChatMapRef.current[ev.id]
                 const partnerChat = chatListRef.current.find((c: any) => c.id === partnerChatId)
-                const partnerId = partnerChat?.partnerProfile?.id
-                  || partnerChat?.memberProfiles?.find((p: any) => p.id !== userData.dbId)?.id
-                if (partnerId) {
-                  supabase.channel(`crew-partner-${partnerId}`).httpSend('partner_left', { eventId: ev.id, eventTitle: ev.title || partnerChat?.title || '' })
+                if (partnerChat?.type === 'duo') {
+                  const partnerId = partnerChat?.partnerProfile?.id
+                    || partnerChat?.memberProfiles?.find((p: any) => p.id !== userData.dbId)?.id
+                  if (partnerId) {
+                    supabase.channel(`crew-partner-${partnerId}`).httpSend('partner_left', { eventId: ev.id, eventTitle: ev.title || partnerChat?.title || '' })
+                  }
                 }
                 setSentCrewInvites(prev => {
                   const next = { ...prev }
