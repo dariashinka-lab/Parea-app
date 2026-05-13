@@ -2129,6 +2129,91 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     setOpenChat((cur: any) => cur ? refresh(cur) : cur)
   }, [crewsByEvent, userData?.dbId])
 
+  // Direct subscription to chat_members changes for the currently OPEN chat,
+  // so the header member count updates immediately on join/leave without
+  // waiting for the crewsByEvent polling cycle (which can lag a few seconds).
+  useEffect(() => {
+    if (!openChat?.id || typeof openChat.id !== 'number' || openChat.id >= 1e12) return
+    const chatId = openChat.id
+    const refreshMembers = async () => {
+      const { data: members } = await supabase.from('chat_members')
+        .select('profile_id, profiles:profile_id(id, name, photos, color, age)')
+        .eq('chat_id', chatId)
+      if (!members) return
+      const otherMembers = members.filter((m: any) => m.profile_id !== userData?.dbId).map((m: any) => {
+        const p = (m as any).profiles || {}
+        return { id: p.id, name: p.name || 'User', photo: p.photos?.[0] || null, color: p.color || '#818CF8', age: p.age }
+      })
+      setOpenChat((cur: any) => cur && cur.id === chatId
+        ? { ...cur, members: members.length, memberProfiles: otherMembers, avatars: otherMembers.map((p: any) => p.photo).filter(Boolean), colors: otherMembers.map((p: any) => p.color) }
+        : cur)
+      setChatList(prev => prev.map((c: any) => c.id === chatId
+        ? { ...c, members: members.length, memberProfiles: otherMembers, avatars: otherMembers.map((p: any) => p.photo).filter(Boolean), colors: otherMembers.map((p: any) => p.color) }
+        : c))
+    }
+    refreshMembers()
+    const ch = supabase.channel(`open_chat_members_${chatId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members', filter: `chat_id=eq.${chatId}` }, refreshMembers)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [openChat?.id, userData?.dbId])
+
+  // Backfill userEventFormat from event_attendees on login. AsyncStorage on a
+  // fresh device install has no userEventFormat, which made VibeCheck fall back
+  // to '1+1' (Duo) for official events the user already joined — showing
+  // "1/2 in crew" instead of the real squad/party size.
+  useEffect(() => {
+    if (!userData?.dbId) return
+    const officialIds = Object.keys(joinedEvents)
+      .map(Number)
+      .filter(id => joinedEvents[id] && id > 100000)
+    if (officialIds.length === 0) return
+    ;(async () => {
+      const { data } = await supabase.from('event_attendees')
+        .select('event_ref_id, group_size_min, group_size_max')
+        .eq('profile_id', userData.dbId)
+        .in('event_ref_id', officialIds)
+      const have = new Set((data || []).map((r: any) => r.event_ref_id))
+      // Backfill missing rows — user joined via crew flow without going through
+      // handleJoinEvent (which is the only place that inserts event_attendees).
+      // Without a row, AI scoring queries can't find them as a candidate, and
+      // other users' VibeCheck shows no % match.
+      const missing = officialIds.filter(id => !have.has(id))
+      if (missing.length > 0) {
+        const allKnown = [...feedOfficialDbEventsRef.current, ...MOCK_EVENTS as any]
+        const inserts = missing.map(id => {
+          const ev: any = allKnown.find((e: any) => e.id === id)
+          return {
+            event_ref_id: id,
+            event_title: ev?.title || 'Event',
+            profile_id: userData.dbId,
+            status: 'confirmed',
+            group_size_min: 3,
+            group_size_max: 5,
+          }
+        })
+        supabase.from('event_attendees')
+          .upsert(inserts, { onConflict: 'event_ref_id,profile_id' })
+          .then(({ error }) => { if (error) console.warn('event_attendees backfill error:', error.message) })
+      }
+      if (data && data.length > 0) {
+        setUserEventFormat(prev => {
+          const next = { ...prev }
+          let changed = false
+          for (const row of data) {
+            // Don't overwrite an explicit user choice already present in state
+            if (next[row.event_ref_id]) continue
+            const hi = row.group_size_max
+            const format = hi === 2 ? '1+1' : hi >= 6 ? 'party' : 'squad'
+            next[row.event_ref_id] = format
+            changed = true
+          }
+          return changed ? next : prev
+        })
+      }
+    })()
+  }, [Object.keys(joinedEvents).join(','), userData?.dbId])
+
   // ─── Fetch existing crew chats per joined official event ───────────────────
   // Runs whenever joinedEvents changes. For each official event the user is in,
   // pulls all `chats` + `chat_members` rows so we can show "existing crews" UI.
@@ -4325,9 +4410,14 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               const { error } = await supabase.from('chat_members')
                 .upsert({ chat_id: chatId, profile_id: userData.dbId }, { onConflict: 'chat_id,profile_id' })
               if (error) { console.warn('chat_members insert error:', error.message); showToast('Try again', 'Could not join crew', '⚠️'); return }
+              // Upsert (not update) so the row exists even if user didn't join via
+              // HomeTab — without this, group_size_min/max stay null and format
+              // backfill on next login can't recover the right crew size.
               await supabase.from('event_attendees')
-                .update({ status: 'confirmed' })
-                .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId)
+                .upsert({
+                  event_ref_id: ev.id, event_title: ev.title, profile_id: userData.dbId,
+                  status: 'confirmed', group_size_min: 3, group_size_max: 5,
+                }, { onConflict: 'event_ref_id,profile_id' })
               setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
               setOfficialEventChatMap(prev => ({ ...prev, [ev.id]: chatId }))
               // Pull fresh members for the chat list entry
@@ -4372,9 +4462,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               if (!newChat) { console.error('chat insert error:', error); showToast('Try again', 'Could not create crew', '⚠️'); return }
               await supabase.from('chat_members')
                 .upsert({ chat_id: newChat.id, profile_id: userData.dbId }, { onConflict: 'chat_id,profile_id' })
+              // Upsert (not update) so row exists even if user joined via flow
+              // that skipped handleJoinEvent's initial insert.
               await supabase.from('event_attendees')
-                .update({ status: 'confirmed' })
-                .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId)
+                .upsert({
+                  event_ref_id: ev.id, event_title: ev.title, profile_id: userData.dbId,
+                  status: 'confirmed', group_size_min: 3, group_size_max: 5,
+                }, { onConflict: 'event_ref_id,profile_id' })
               setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
               setOfficialEventChatMap(prev => ({ ...prev, [ev.id]: newChat.id }))
               // Anchor chat expiry to event time so creating a crew for a past
@@ -6212,13 +6306,16 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         const dateStr = prettyEventTime(ev?.date_label || ev?.time_label || ev?.time) || ''
                         const venueShort = (ev?.location || ev?.venue || '').split(',')[0].trim()
                         const dateAndVenue = [dateStr, venueShort].filter(Boolean).join(' · ')
-                        const memberCount = openChat.memberProfiles?.length || openChat.members || 0
+                        // openChat.members is the TOTAL count (including me). memberProfiles
+                        // is OTHERS (excluding me). Use members directly; falling back to
+                        // memberProfiles+1 only when members is missing.
+                        const totalCount = openChat.members ?? ((openChat.memberProfiles?.length || 0) + 1)
                         return (
                           <>
                             {!!dateAndVenue && (
                               <Text style={{ fontSize: 12, color: '#64748B', marginTop: 1 }} numberOfLines={1}>{dateAndVenue}</Text>
                             )}
-                            <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }} numberOfLines={1}>Crew chat · {memberCount + 1} members</Text>
+                            <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }} numberOfLines={1}>Crew chat · {totalCount} members</Text>
                           </>
                         )
                       })()}

@@ -491,7 +491,10 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
 
           {myEvents.map((ev: any) => {
             const isCommunity = ev.type === 'community'
-            const format     = userEventFormat?.[ev.id]    || (ev.type === 'official' ? '1+1' : 'squad')
+            // Default to 'squad' for official events — matches handleJoinEvent's
+            // [2,5] default in event_attendees. Was '1+1' which forced Duo (1/2)
+            // display for users who joined via flows that didn't set userEventFormat.
+            const format     = userEventFormat?.[ev.id]    || 'squad'
             // Crew-list mode covers all official events. Old "CREW FOUND" progress
             // bar + partners avatars belonged to the swipe flow — they get hidden here.
             const isCrewMode = !isCommunity
@@ -534,7 +537,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                     <View style={{ flex: 1, marginRight: 10 }}>
                       <Text style={{ fontSize: 16, fontFamily: 'ClashDisplay-Semibold', color: '#fff', letterSpacing: -0.3, lineHeight: 21 }} numberOfLines={2}>{ev.title}</Text>
-                      <Text style={{ fontSize: 11, fontFamily: 'Outfit-Regular', color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{prettyEventTime(ev.time)}{ev.distance && ev.distance !== '0km' ? ` · ${ev.distance}` : ev.location ? ` · ${ev.location}` : ''}</Text>
+                      <Text style={{ fontSize: 11, fontFamily: 'Outfit-Regular', color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{ev.date_label ? `${ev.date_label}${ev.time_label ? ' · ' + ev.time_label : ''}` : prettyEventTime(ev.time) || ''}{ev.distance && ev.distance !== '0km' ? ` · ${ev.distance}` : ev.location ? ` · ${ev.location}` : ''}</Text>
                     </View>
                     {/* Hide swipe-flow status badge in crew mode (was "1 found 🎯") */}
                     {!isCrewMode && (
@@ -1059,7 +1062,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                     <View style={{ flex: 1, marginRight: 10 }}>
                       <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: -0.3 }} numberOfLines={2}>{ev.title}</Text>
-                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{prettyEventTime(ev.time)}{ev.location ? ` · ${ev.location}` : ''}</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{ev.date_label ? `${ev.date_label}${ev.time_label ? ' · ' + ev.time_label : ''}` : prettyEventTime(ev.time) || ''}{ev.location ? ` · ${ev.location}` : ''}</Text>
                       {ev.hostTransport === 'car' && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 }}>
                           <Text style={{ fontSize: 11 }}>🚗</Text>
@@ -1150,7 +1153,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                     <View style={{ flex: 1, marginRight: 10 }}>
                       <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: -0.3 }} numberOfLines={2}>{ev.title}</Text>
-                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{prettyEventTime(ev.time)}</Text>
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{ev.date_label ? `${ev.date_label}${ev.time_label ? ' · ' + ev.time_label : ''}` : prettyEventTime(ev.time) || ''}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 5 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, backgroundColor: 'rgba(245,158,11,0.13)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.35)' }}>
