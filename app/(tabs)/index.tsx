@@ -6290,14 +6290,18 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     }}
                     activeOpacity={0.7}
                   >
-                    <LinearGradient
-                      colors={[
-                        ((openChat.colors || [])[0] && typeof (openChat.colors || [])[0] === 'string') ? (openChat.colors || [])[0] : '#818CF8',
-                        ((openChat.colors || [])[1] && typeof (openChat.colors || [])[1] === 'string') ? (openChat.colors || [])[1] : '#6366F1',
-                      ]}
-                      style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 20 }}>{openChat.eventEmoji || '🎉'}</Text>
-                    </LinearGradient>
+                    {openChat.eventImage ? (
+                      <Image source={{ uri: openChat.eventImage }} style={{ width: 42, height: 42, borderRadius: 12 }} resizeMode="cover" />
+                    ) : (
+                      <LinearGradient
+                        colors={[
+                          ((openChat.colors || [])[0] && typeof (openChat.colors || [])[0] === 'string') ? (openChat.colors || [])[0] : '#818CF8',
+                          ((openChat.colors || [])[1] && typeof (openChat.colors || [])[1] === 'string') ? (openChat.colors || [])[1] : '#6366F1',
+                        ]}
+                        style={{ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 20 }}>{openChat.eventEmoji || '🎉'}</Text>
+                      </LinearGradient>
+                    )}
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E1B4B', letterSpacing: -0.2 }} numberOfLines={1}>{openChat.event}</Text>
                       {(() => {
