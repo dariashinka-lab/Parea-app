@@ -3556,6 +3556,16 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           }
         }
         if (saved.passedRequests) setPassedRequests(saved.passedRequests)
+        // Build cleaned chatMessages first so we can use it to patch chatList previews
+        const cleanedMessages: Record<string, any[]> = {}
+        if (saved.chatMessages) {
+          // Filter out system messages — they're session-only, shouldn't survive restart
+          Object.entries(saved.chatMessages).forEach(([id, msgs]: [string, any]) => {
+            const filtered = (msgs || []).filter((m: any) => m.from !== 'system')
+            if (filtered.length > 0) cleanedMessages[id] = filtered
+          })
+          setChatMessages(cleanedMessages)
+        }
         if (saved.chatList) {
           // Dedupe by id, then by (type, event-pointing key) to catch races where
           // realtime + manual confirm flows added the same chat with different ids.
@@ -3572,16 +3582,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             seenIds.add(c.id)
             return true
           })
-          setChatList(deduped)
-        }
-        if (saved.chatMessages) {
-          // Filter out system messages — they're session-only, shouldn't survive restart
-          const cleaned: Record<string, any[]> = {}
-          Object.entries(saved.chatMessages).forEach(([id, msgs]: [string, any]) => {
-            const filtered = (msgs || []).filter((m: any) => m.from !== 'system')
-            if (filtered.length > 0) cleaned[id] = filtered
+          // Patch each chat's lastMsg/time from the most recent message in chatMessages.
+          // Without this, preview can show stale "Waiting for crew to join..." after restart
+          // when actual conversation has happened since.
+          const patched = deduped.map((c: any) => {
+            const msgs = cleanedMessages[c.id] || []
+            const last = msgs[msgs.length - 1]
+            if (!last) return c
+            const previewText = last.from === 'me' ? `You: ${last.text}` : (last.senderName ? `${last.senderName}: ${last.text}` : last.text)
+            return { ...c, lastMsg: previewText || c.lastMsg, time: last.time || c.time }
           })
-          setChatMessages(cleaned)
+          setChatList(patched)
         }
         if (saved.cancelledEventIds) {
           setCancelledEventIds(saved.cancelledEventIds)
@@ -3876,8 +3887,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           time: new Date().toISOString(), isNew: true, chatExpiresAt: evChatExpiry,
           event: eventTitle, eventEmoji: '🎉',
           partnerProfile: partner,
+          eventImage: (foundEv as any)?.image_url || null,
         } : {
           id: chatId, type: 'group', eventRefId: chatData?.event_id,
+          eventImage: (foundEv as any)?.image_url || null,
           event: eventTitle, eventEmoji: '🎉',
           members: members.length,
           avatars: otherMembers.map((p: any) => p.photo).filter(Boolean),
@@ -4015,6 +4028,40 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     })
   }, [officialEventChatMap, userData?.dbId])
 
+  // ── Hydrate chat previews on mount: fetch the latest message for each chat in
+  // the list so the Chats tab shows accurate lastMsg/time immediately after login,
+  // without waiting for the user to open each chat.
+  useEffect(() => {
+    if (!userData?.dbId) return
+    const chatIds = chatList.map((c: any) => c.id).filter((id: any) => typeof id === 'number' && id < 1e12)
+    if (chatIds.length === 0) return
+    let cancelled = false
+    ;(async () => {
+      const { data: lastMsgs } = await supabase
+        .from('messages')
+        .select('chat_id, text, sender_id, created_at')
+        .in('chat_id', chatIds)
+        .order('created_at', { ascending: false })
+      if (cancelled || !lastMsgs) return
+      // DISTINCT ON chat_id — keep only the most recent per chat
+      const latestByChat: Record<number, any> = {}
+      for (const m of lastMsgs) if (!latestByChat[m.chat_id]) latestByChat[m.chat_id] = m
+      setChatList(prev => prev.map((c: any) => {
+        const last = latestByChat[c.id]
+        if (!last) return c
+        const isMe = last.sender_id === userData.dbId
+        const isSystem = (last.text || '').includes('left the group')
+        if (isSystem) return { ...c, lastMsg: last.text, time: last.created_at }
+        const sender = (c.memberProfiles || []).find((p: any) => p.id === last.sender_id)
+        const previewText = isMe
+          ? `You: ${last.text}`
+          : (sender?.name ? `${sender.name}: ${last.text}` : last.text)
+        return { ...c, lastMsg: previewText, time: last.created_at }
+      }))
+    })()
+    return () => { cancelled = true }
+  }, [chatList.map((c: any) => c.id).join(','), userData?.dbId])
+
   // ── Fallback poll: check chat_members every 30s for chats added via party/squad flow ──
   useEffect(() => {
     if (!userData?.dbId) return
@@ -4049,9 +4096,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           && (existing.members || 0) === members.length
           && (!isCommunityChat || existing.communityEventId === chat.event_id)
         if (inSync) continue
+        const foundEventRow: any = dbCommunityEventsRef.current.find((e: any) => e.id === chat.event_id) || feedOfficialDbEventsRef.current.find((e: any) => e.id === chat.event_id)
         const newChat: any = {
           id: chat.id, type: correctType, eventRefId: chat.event_id,
-          event: dbCommunityEventsRef.current.find((e: any) => e.id === chat.event_id)?.title || feedOfficialDbEventsRef.current.find((e: any) => e.id === chat.event_id)?.title || 'Crew Chat',
+          event: foundEventRow?.title || 'Crew Chat',
+          eventImage: foundEventRow?.image_url || null,
           eventEmoji: '🎉', members: members.length,
           avatars: otherMembers.map((p: any) => p.photo).filter(Boolean),
           colors: otherMembers.map((p: any) => p.color), memberProfiles: otherMembers,
@@ -4688,6 +4737,27 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   useEffect(() => { dbCommunityEventsRef.current = dbCommunityEvents }, [dbCommunityEvents])
   useEffect(() => { feedOfficialDbEventsRef.current = feedOfficialDbEvents }, [feedOfficialDbEvents])
 
+  // Backfill eventImage for chats that were added via realtime/poll before event
+  // data loaded. Without this, those chats show member photos instead of event image.
+  useEffect(() => {
+    if (dbCommunityEvents.length === 0 && feedOfficialDbEvents.length === 0) return
+    setChatList(prev => {
+      let changed = false
+      const next = prev.map((c: any) => {
+        if (c.eventImage) return c
+        const evId = c.eventRefId ?? c.communityEventId ?? c.hostEventId
+        if (evId == null) return c
+        const ev: any = dbCommunityEvents.find((e: any) => e.id === evId) || feedOfficialDbEvents.find((e: any) => e.id === evId)
+        if (ev?.image_url) {
+          changed = true
+          return { ...c, eventImage: ev.image_url }
+        }
+        return c
+      })
+      return changed ? next : prev
+    })
+  }, [dbCommunityEvents, feedOfficialDbEvents])
+
   // Auto-expire hosted events and their chats 24h after event ends
   useEffect(() => {
     if (!persistLoadedState) return
@@ -5074,6 +5144,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             }
           })
           setChatMessages(prev => ({ ...prev, [chatId]: msgs }))
+          // Update preview in chatList so Chats tab shows fresh lastMsg without
+          // needing the user to open the chat first.
+          const last = msgs[msgs.length - 1]
+          if (last) {
+            const previewText = last.from === 'me'
+              ? `You: ${last.text}`
+              : (last.senderName ? `${last.senderName}: ${last.text}` : last.text)
+            setChatList(prev => prev.map(c =>
+              c.id === chatId ? { ...c, lastMsg: previewText, time: last.time || c.time } : c
+            ))
+          }
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 400)
         })
     }
