@@ -2944,6 +2944,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     }
   }, [])
   const [replyTo, setReplyTo] = useState<{ text: string; senderName: string } | null>(null)
+  const replyToRef = useRef<{ text: string; senderName: string } | null>(null)
+  useEffect(() => { replyToRef.current = replyTo }, [replyTo])
   const [chatList, setChatList] = useState(MOCK_CHATS)
   const [chatPartnerPreview, setChatPartnerPreview] = useState<any>(null)
   const [groupMembersOpen, setGroupMembersOpen] = useState(false)
@@ -5017,19 +5019,23 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   const handleSend = () => {
     if (!chatInput.trim() || !openChat) return
     const text = chatInput.trim()
+    // Snapshot reply from ref to bypass stale state closure when user taps Send
+    // before React commits the long-press setReplyTo update.
+    const currentReply = replyToRef.current
     const _now = new Date()
-    const newMsg = { from: 'me', text, time: _now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), date: _now.toISOString().slice(0, 10), replyTo: replyTo || undefined }
+    const newMsg = { from: 'me', text, time: _now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), date: _now.toISOString().slice(0, 10), replyTo: currentReply || undefined }
     setChatMessages(prev => ({ ...prev, [openChat.id]: [...(prev[openChat.id] || []), newMsg] }))
     setChatList(prev => prev.map(c => c.id === openChat.id ? { ...c, lastMsg: `You: ${text}`, time: new Date().toISOString() } : c))
     setChatInput('')
     setReplyTo(null)
+    replyToRef.current = null
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60)
 
     // Для community-чатов — пишем в Supabase + broadcast
     const chatEvId = openChat.communityEventId || openChat.hostEventId
     if (chatEvId && userData?.dbId) {
-      const payload = { text, sender_id: userData.dbId, created_at: new Date().toISOString(), reply_to_text: replyTo?.text || null, reply_to_sender: replyTo?.senderName || null }
-      supabase.from('messages').insert({ community_event_id: chatEvId, sender_id: userData.dbId, text, reply_to_text: replyTo?.text || null, reply_to_sender: replyTo?.senderName || null })
+      const payload = { text, sender_id: userData.dbId, created_at: new Date().toISOString(), reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null }
+      supabase.from('messages').insert({ community_event_id: chatEvId, sender_id: userData.dbId, text, reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null })
         .then(({ error }) => { if (error) console.warn('message insert error:', error.message) })
       const bcast = { type: 'broadcast', event: 'message', payload }
       if (communityBroadcastRef.current) communityBroadcastRef.current.send(bcast)
@@ -5040,17 +5046,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     // Для дуо чатов (crew invite) — пишем в Supabase через chat_id + broadcast
     const isChatDuoSend = openChat.type === 'duo' || (openChat.type === 'group' && !openChat.communityEventId && !openChat.hostEventId)
     if (isChatDuoSend && openChat.id && userData?.dbId) {
-      const payload = { text, sender_id: userData.dbId, created_at: new Date().toISOString(), reply_to_text: replyTo?.text || null, reply_to_sender: replyTo?.senderName || null, sender_name: userData.name || '', sender_photo: (userData as any).photos?.[0] || null, sender_color: (userData as any).color || '#818CF8' }
+      const payload = { text, sender_id: userData.dbId, created_at: new Date().toISOString(), reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null, sender_name: userData.name || '', sender_photo: (userData as any).photos?.[0] || null, sender_color: (userData as any).color || '#818CF8' }
       // Skip DB insert if chat has a fake local ID (Date.now() > 1e12) — not a real DB chat
       const sendBroadcast = (extraPayload: any = {}) => {
         const bcast = { type: 'broadcast', event: 'message', payload: { ...payload, ...extraPayload } }
-        if (duoBroadcastRef.current) { console.log('broadcasting on duo_chat_' + openChat.id); duoBroadcastRef.current.send(bcast) }
-        else { console.log('queuing broadcast'); duoBroadcastQueueRef.current.push(bcast) }
+        if (duoBroadcastRef.current) duoBroadcastRef.current.send(bcast)
+        else duoBroadcastQueueRef.current.push(bcast)
       }
       if (openChat.id < 1e12) {
         // INSERT first so we can broadcast with the real DB id — receivers dedup
         // via _dbId across broadcast/inbox/loadHistory paths.
-        supabase.from('messages').insert({ chat_id: openChat.id, sender_id: userData.dbId, text, reply_to_text: replyTo?.text || null, reply_to_sender: replyTo?.senderName || null })
+        supabase.from('messages').insert({ chat_id: openChat.id, sender_id: userData.dbId, text, reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null })
           .select('id').single()
           .then(({ data, error }) => {
             if (error) {
@@ -5143,7 +5149,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               _senderId: m.sender_id,
             }
           })
-          setChatMessages(prev => ({ ...prev, [chatId]: msgs }))
+          setChatMessages(prev => {
+            const existing = prev[chatId] || []
+            // Preserve any local optimistic msgs (from='me', no _dbId yet) whose
+            // text isn't already in the DB result. Prevents reply flicker —
+            // optimistic msg with replyTo briefly disappearing on polling.
+            const localOptimistic = existing.filter((m: any) =>
+              m.from === 'me' && !m._dbId &&
+              !msgs.some((dbM: any) => dbM.from === 'me' && dbM.text === m.text)
+            )
+            return { ...prev, [chatId]: [...msgs, ...localOptimistic] }
+          })
           // Update preview in chatList so Chats tab shows fresh lastMsg without
           // needing the user to open the chat first.
           const last = msgs[msgs.length - 1]
@@ -7567,7 +7583,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           <Image source={msg.senderPhoto ? { uri: msg.senderPhoto } : undefined} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: msg.senderColor || '#818CF8' }} />
                           <View style={{ maxWidth: W * 0.72 }}>
                             {msg.senderName && <Text style={{ fontSize: 11, color: msg.senderColor || '#818CF8', fontWeight: '600', marginBottom: 3, marginLeft: 4 }}>{msg.senderName}</Text>}
-                            <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setReplyTo({ text: msg.text, senderName: msg.senderName || 'them' }) }}>
+                            <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: msg.senderName || 'them' }; replyToRef.current = r; setReplyTo(r) }}>
                               <View style={s.msgBubbleThem}>
                                 {msg.replyTo && (
                                   <View style={{ backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 8, padding: 7, marginBottom: 5, borderLeftWidth: 3, borderLeftColor: '#6366F1' }}>
@@ -7584,7 +7600,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       )}
                       {msg.from === 'them' && openChat.type === 'duo' && (
                         <View style={{ maxWidth: W * 0.72 }}>
-                          <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setReplyTo({ text: msg.text, senderName: msg.senderName || openChat.name || 'them' }) }}>
+                          <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: msg.senderName || openChat.name || 'them' }; replyToRef.current = r; setReplyTo(r) }}>
                             <View style={s.msgBubbleThem}>
                               {msg.replyTo && (
                                 <View style={{ backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 8, padding: 7, marginBottom: 5, borderLeftWidth: 3, borderLeftColor: '#6366F1' }}>
@@ -7600,7 +7616,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       )}
                       {msg.from === 'me' && (
                         <View style={{ maxWidth: W * 0.72 }}>
-                          <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setReplyTo({ text: msg.text, senderName: 'You' }) }}>
+                          <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: 'You' }; replyToRef.current = r; setReplyTo(r) }}>
                             <View style={s.msgBubbleMe}>
                               {msg.replyTo && (
                                 <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: 7, marginBottom: 5, borderLeftWidth: 3, borderLeftColor: 'rgba(255,255,255,0.6)' }}>
