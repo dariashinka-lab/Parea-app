@@ -906,6 +906,12 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                               {joinable.map((crew: any) => {
                                 const scoreColor = crew.avgMatch >= 75 ? '#43E97B' : crew.avgMatch >= 55 ? '#FBBF24' : crew.avgMatch >= 35 ? '#A78BFA' : '#94A3B8'
                                 const openCrewPreview = () => setCrewPreviewState({ ev, crew })
+                                // Use the crew's own format/maxSize (stored on the chat row) — not
+                                // the current user's chosen format. That way the card says "1 of 5"
+                                // for a squad crew even if the viewer picked party.
+                                const crewMax = crew.maxSize || maxSize
+                                const crewFormat = crew.format as string | undefined
+                                const formatLabel = crewFormat === '1+1' ? '1+1' : crewFormat === 'party' ? 'Party' : crewFormat === 'squad' ? 'Squad' : null
                                 return (
                                   // Card itself is non-interactive — two explicit pills on the
                                   // right do the actions. View = preview members, Join = commit.
@@ -920,11 +926,18 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                                       ))}
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                      <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
-                                        {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
-                                      </Text>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff', flexShrink: 1 }}>
+                                          {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
+                                        </Text>
+                                        {formatLabel && (
+                                          <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)' }}>
+                                            <Text style={{ fontSize: 9, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.3 }}>{formatLabel}</Text>
+                                          </View>
+                                        )}
+                                      </View>
                                       <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 3 }}>
-                                        {crew.members.length} of {maxSize} · {maxSize - crew.members.length} {maxSize - crew.members.length === 1 ? 'spot' : 'spots'} left
+                                        {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
                                       </Text>
                                       {crew.avgMatch > 0 && (
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>

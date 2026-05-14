@@ -2160,15 +2160,21 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       const missing = officialIds.filter(id => !have.has(id))
       if (missing.length > 0) {
         const allKnown = [...feedOfficialDbEventsRef.current, ...MOCK_EVENTS as any]
+        const sizeMap: Record<string, [number, number]> = { '1+1': [2, 2], squad: [3, 5], party: [6, 20] }
         const inserts = missing.map(id => {
           const ev: any = allKnown.find((e: any) => e.id === id)
+          // Honor the user's actual format pick if we have it — otherwise fall back to squad.
+          // Hardcoding [3,5] was overwriting party (20) picks when a race put joinedEvents
+          // ahead of confirmJoin's upsert.
+          const fmt = userEventFormat[id]
+          const [gMin, gMax] = (fmt && sizeMap[fmt]) || [3, 5]
           return {
             event_ref_id: id,
             event_title: ev?.title || 'Event',
             profile_id: userData.dbId,
             status: 'confirmed',
-            group_size_min: 3,
-            group_size_max: 5,
+            group_size_min: gMin,
+            group_size_max: gMax,
           }
         })
         supabase.from('event_attendees')
@@ -2207,7 +2213,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     if (officialJoined.length === 0) { setCrewsByEvent({}); return }
     let cancelled = false
     const fetchCrews = async () => {
-      const result: Record<number, Array<{ chatId: number; members: any[]; avgMatch: number }>> = {}
+      const result: Record<number, Array<{ chatId: number; members: any[]; avgMatch: number; format?: string; maxSize?: number }>> = {}
       await Promise.all(officialJoined.map(async (evId) => {
         // Two-step fetch: chats first, then full member profiles separately. The
         // nested-select form was returning null `profiles` join in some cases
@@ -2215,10 +2221,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         // look empty to other users. Doing it as two queries is rock-solid.
         const { data: chatsForEvent } = await supabase
           .from('chats')
-          .select('id')
+          .select('id, format')
           .eq('event_id', evId)
           .eq('type', 'group')
         const chatIds = (chatsForEvent || []).map((c: any) => c.id)
+        const formatByChat: Record<number, string> = {}
+        ;(chatsForEvent || []).forEach((c: any) => { if (c.format) formatByChat[c.id] = c.format })
         if (chatIds.length === 0) { result[evId] = []; return }
         const { data: cms } = await supabase
           .from('chat_members')
@@ -2241,12 +2249,15 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             drinksPref: p.drinks_pref, smokingPref: p.smoking_pref, hasPets: !!p.has_pets,
           })
         })
+        const sizeMap: Record<string, number> = { '1+1': 2, squad: 5, party: 20 }
         result[evId] = chatIds.map((cid: number) => {
           const members = byChat[cid] || []
           const otherIds = members.map((m: any) => m.id).filter((id: string) => id !== userData.dbId)
           const scores = otherIds.map(id => scoreById[id]).filter(s => typeof s === 'number')
           const avgMatch = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
-          return { chatId: cid, members, avgMatch }
+          const format = formatByChat[cid]
+          const maxSize = format ? sizeMap[format] : undefined
+          return { chatId: cid, members, avgMatch, format, maxSize }
         })
       }))
       if (!cancelled) setCrewsByEvent(result)
@@ -4471,18 +4482,22 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             onCreateNewCrew={async (ev: any) => {
               if (!userData?.dbId) return
               // Fresh chat for this event — no get-or-create, we want multiple chats per event.
+              // Derive creator's format from event_attendees (DB truth) — local userEventFormat
+              // can drift (AsyncStorage reset, stale backfill). Fall back to local state, then squad.
+              const { data: myRow } = await supabase.from('event_attendees')
+                .select('group_size_min, group_size_max')
+                .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId).maybeSingle()
+              const hi = myRow?.group_size_max
+              const creatorFormat = hi === 2 ? '1+1' : (hi != null && hi >= 6) ? 'party' : (hi != null ? 'squad' : (userEventFormat[ev.id] || 'squad'))
               const { data: newChat, error } = await supabase
                 .from('chats')
-                .insert({ event_id: ev.id, type: 'group', last_msg: '⏳ Waiting for crew to join...' })
+                .insert({ event_id: ev.id, type: 'group', last_msg: '⏳ Waiting for crew to join...', format: creatorFormat })
                 .select('id').single()
               if (!newChat) { console.error('chat insert error:', error); showToast('Try again', 'Could not create crew', '⚠️'); return }
               await supabase.from('chat_members')
                 .upsert({ chat_id: newChat.id, profile_id: userData.dbId }, { onConflict: 'chat_id,profile_id' })
               // Same pattern as onJoinSpecificCrew: don't overwrite existing sizes.
               {
-                const { data: myRow } = await supabase.from('event_attendees')
-                  .select('group_size_min, group_size_max')
-                  .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId).maybeSingle()
                 if (myRow && myRow.group_size_min != null && myRow.group_size_max != null) {
                   await supabase.from('event_attendees').update({ status: 'confirmed' })
                     .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId)
@@ -5108,6 +5123,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             joinedEvents={joinedEvents}
             userEventFormat={userEventFormat}
             userEventTransport={userEventTransport}
+            crewsByEvent={crewsByEvent}
+            officialEventChatMap={officialEventChatMap}
             approvedJoiners={approvedJoiners}
             hostConfirmedMembers={hostConfirmedMembers}
             approvedAtMap={approvedAtMap}

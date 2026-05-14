@@ -15,9 +15,11 @@ import { ProfilePreviewSheet } from '../components/ProfilePreviewSheet'
 import { MOCK_EVENTS, VIBE_FORMAT_MAX, VIBE_FORMAT_THRESHOLD, CATEGORY_EMOJI, FLAG_MAP } from '../feed-constants'
 import { isEventPast, prettyEventTime, parseEventDateTime } from '../feed-helpers'
 
-export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser }: {
+export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser }: {
   chatList: any[]; onOpenChat: (c: any) => void; onLeaveChat?: (id: number, addSystemMsg?: boolean) => void;
   joinedEvents?: Record<number, string>; userEventFormat?: Record<number, string>; userEventTransport?: Record<number, string>; allEvents?: any[]; onEventDetail?: (ev: any) => void;
+  crewsByEvent?: Record<number, Array<{ chatId: number; members: any[]; avgMatch: number; format?: string; maxSize?: number }>>;
+  officialEventChatMap?: Record<number, number>;
   onVibeCheck?: (ev: any) => void; onLeaveEvent?: (ev: any) => void; onUpdatePlans?: (ev: any) => void;
   initialSubTab?: 'going' | 'messages'; hostedEvents?: any[]; approvedJoiners?: Record<number, any[]>; hostConfirmedMembers?: Record<number, any[]>; approvedAtMap?: Record<number, number>; onCancelHostedEvent?: (ev: any) => void; onPlansOpen?: () => void; eventAttendeesMap?: Record<number, any[]>; passedRequests?: Record<number, string[]>;
   onBlockUser?: (profile: any) => void; onReportUser?: (profile: any) => void;
@@ -253,13 +255,19 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
             </View>
           ) : (
             myEvents.map(ev => {
-              const fmt    = FORMAT_CHIP[userEventFormat[ev.id]]
               const trsp   = TRANSPORT_CHIP[userEventTransport[ev.id]]
               const isLive = isToday(ev.time)
 
-              // Use actual data for crew count
-              const format        = userEventFormat[ev.id] || (ev.type === 'official' ? '1+1' : 'squad')
-              const cap           = VIBE_FORMAT_MAX[format] || 5
+              // Use actual data for crew count. If user already joined a specific
+              // crew (chat exists), inherit that crew's format — otherwise the user's
+              // own local pick can disagree with the crew they're actually in.
+              const joinedChatId = officialEventChatMap[ev.id]
+              const joinedCrew = joinedChatId
+                ? (crewsByEvent[ev.id] || []).find(c => c.chatId === joinedChatId)
+                : undefined
+              const format        = joinedCrew?.format || userEventFormat[ev.id] || (ev.type === 'official' ? '1+1' : 'squad')
+              const fmt           = FORMAT_CHIP[format]
+              const cap           = joinedCrew?.maxSize || VIBE_FORMAT_MAX[format] || 5
               const threshold     = VIBE_FORMAT_THRESHOLD[format] || cap
               const isCommunity   = ev.type === 'community'
               const realAttendees = ev.type === 'official' ? (eventAttendeesMap[ev.id] || []) : []
