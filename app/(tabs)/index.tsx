@@ -2004,22 +2004,22 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       // Surface to FeedScreen so CrewPoolSheet can filter the pool the same way
       setPassedIdsByEvent(passedSetByEvent)
       await Promise.all(officialJoined.map(async (evId) => {
-        const evFormat = userEventFormat[evId] || 'squad'
-        const [userMin, userMax] = FORMAT_SIZES[evFormat] || [2, 5]
         // Include confirmed users so others can see them and join existing crew chats
         const statusFilter = ['looking', 'ready', 'confirmed']
         // Fetch own row to know my crew_pref for this event
         const { data: mine } = await supabase.from('event_attendees').select('crew_pref').eq('event_ref_id', evId).eq('profile_id', userData.dbId).maybeSingle()
         const myPref = mine?.crew_pref || 'any'
         const myGender = (userData as any)?.gender
+        // Size filter intentionally dropped — users already sharing a crew chat
+        // should always be scored regardless of original format preference. The
+        // previous gs_min/gs_max overlap check silently excluded chat members on
+        // format mismatch, producing avgMatch=0 and hidden % vibe match.
         const { data: rawData } = await supabase
           .from('event_attendees')
           .select('*, profiles(*)')
           .eq('event_ref_id', evId)
           .neq('profile_id', userData.dbId)
           .in('status', statusFilter)
-          .lte('group_size_min', userMax)
-          .gte('group_size_max', userMin)
           .limit(20)
         // Bidirectional crew_pref + gender filter, then drop anyone we've mutually passed
         const passedSet = passedSetByEvent[evId] || new Set<string>()
@@ -2180,7 +2180,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           const next = { ...prev }
           let changed = false
           for (const row of data) {
-            // Don't overwrite an explicit user choice already present in state
+            // Don't overwrite explicit local choice (that's the user's intent —
+            // DB row may be stale from an earlier crew join with hardcoded sizes).
             if (next[row.event_ref_id]) continue
             const hi = row.group_size_max
             const format = hi === 2 ? '1+1' : hi >= 6 ? 'party' : 'squad'
@@ -4397,26 +4398,32 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               const { error } = await supabase.from('chat_members')
                 .upsert({ chat_id: chatId, profile_id: userData.dbId }, { onConflict: 'chat_id,profile_id' })
               if (error) { console.warn('chat_members insert error:', error.message); showToast('Try again', 'Could not join crew', '⚠️'); return }
-              // Keep user's existing sizes if row exists (handleJoinEvent set them
-              // from format choice). If row is missing entirely, INSERT with local
-              // format choice → fallback to inheriting from another attendee →
-              // squad default. NEVER overwrite existing sizes (was the bug:
-              // joining a crew clobbered party [6,20] with [3,5]).
+              // Local user choice (userEventFormat) is the source of truth for sizes.
+              // If user picked party (20), make sure the DB row reflects that — otherwise
+              // AI scoring filter (size compatibility) excludes others on size mismatch.
               {
+                const sizeMap: Record<string, [number, number]> = { '1+1': [2, 2], squad: [3, 5], party: [6, 20] }
+                const fmt = userEventFormat[ev.id]
+                const localSizes: [number, number] | null = (fmt && sizeMap[fmt]) || null
                 const { data: myRow } = await supabase.from('event_attendees')
                   .select('group_size_min, group_size_max')
                   .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId).maybeSingle()
                 if (myRow && myRow.group_size_min != null && myRow.group_size_max != null) {
-                  await supabase.from('event_attendees').update({ status: 'confirmed' })
+                  // Row exists — update sizes to local choice if it differs (drift fix)
+                  const update: any = { status: 'confirmed' }
+                  if (localSizes && (myRow.group_size_min !== localSizes[0] || myRow.group_size_max !== localSizes[1])) {
+                    update.group_size_min = localSizes[0]
+                    update.group_size_max = localSizes[1]
+                  }
+                  await supabase.from('event_attendees').update(update)
                     .eq('event_ref_id', ev.id).eq('profile_id', userData.dbId)
                 } else {
-                  const sizeMap: Record<string, [number, number]> = { '1+1': [2, 2], squad: [3, 5], party: [6, 20] }
-                  const fmt = userEventFormat[ev.id]
-                  let sizes: [number, number] = (fmt && sizeMap[fmt]) || [3, 5]
-                  if (!fmt) {
+                  // No row — use local choice, fallback to inheriting from crew creator
+                  let sizes: [number, number] = localSizes || [3, 5]
+                  if (!localSizes) {
                     const { data: other } = await supabase.from('event_attendees')
                       .select('group_size_min, group_size_max')
-                      .eq('event_ref_id', ev.id).limit(1).maybeSingle()
+                      .eq('event_ref_id', ev.id).neq('profile_id', userData.dbId).limit(1).maybeSingle()
                     if (other && other.group_size_min != null && other.group_size_max != null) {
                       sizes = [other.group_size_min, other.group_size_max]
                     }
