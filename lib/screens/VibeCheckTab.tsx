@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import MaskedView from '@react-native-masked-view/masked-view'
 import { BlurView } from 'expo-blur'
 import * as Haptics from 'expo-haptics'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Zap, PartyPopper, MessageCircle, Clock, Check, Minus, Trash2, Crown,
   CheckCircle, User,
@@ -73,6 +73,7 @@ function RockingTransportPill({ transport }: { transport: string }) {
 }
 
 export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEventTransport, onGoHome, onConfirm, onLeave, hostedEvents = [], pendingJoinRequests = {}, approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onApproveJoiner, onRejectJoiner, onPassJoiner, passedRequests = {}, userData, tonightVibe, onGoToMessages, eventAttendeesMap = {}, communityEventMembers = {}, incomingCrewInvites = [], sentCrewInvites = {}, onAcceptInvite, onDeclineInvite, onCancelHostedEvent, readyCountMap = {}, crewPreviewMap = {}, passedIdsByEvent = {}, onPassMember, onJoinCrew, crewsByEvent = {}, onJoinSpecificCrew, onCreateNewCrew, officialEventChatMap = {}, topInset = 0, onBlockUser, onReportUser }: any) {
+  const insets = useSafeAreaInsets()
   // Official + approved community events — shown as crew cards
   const notExpired = (e: any) => e.expiresAt ? e.expiresAt > Date.now() : !isEventPast(e.date_label || e.time || '')
   const myEvents = (allEvents || []).filter((e: any) => {
@@ -1229,7 +1230,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 8, 18), borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }}>
               <TouchableOpacity activeOpacity={0.85} onPress={() => {
                 const { ev, crew } = crewPreviewState
                 setCrewPreviewState(null)
