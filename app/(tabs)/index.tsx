@@ -4085,7 +4085,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       supabase.from('messages').insert(row)
         .then(({ error }) => { if (error) console.warn('message insert error:', error.message) })
       const bcast = { type: 'broadcast', event: 'message', payload }
-      if (communityBroadcastRef.current) communityBroadcastRef.current.send(bcast)
+      // httpSend (REST) is the explicit one-off broadcast — Supabase deprecated
+      // the implicit REST fallback that fired when .send() was called on a
+      // channel that wasn't WebSocket-ready. We still also INSERT to messages,
+      // so DB realtime delivers regardless. httpSend is just the instant nudge.
+      if (communityBroadcastRef.current) communityBroadcastRef.current.httpSend('message', payload)
       else communityBroadcastQueueRef.current.push(bcast)
       return
     }
@@ -4096,8 +4100,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       const payload = { text, sender_id: userData.dbId, created_at: new Date().toISOString(), reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null, sender_name: userData.name || '', sender_photo: (userData as any).photos?.[0] || null, sender_color: (userData as any).color || '#818CF8' }
       // Skip DB insert if chat has a fake local ID (Date.now() > 1e12) — not a real DB chat
       const sendBroadcast = (extraPayload: any = {}) => {
-        const bcast = { type: 'broadcast', event: 'message', payload: { ...payload, ...extraPayload } }
-        if (duoBroadcastRef.current) duoBroadcastRef.current.send(bcast)
+        const fullPayload = { ...payload, ...extraPayload }
+        const bcast = { type: 'broadcast', event: 'message', payload: fullPayload }
+        if (duoBroadcastRef.current) duoBroadcastRef.current.httpSend('message', fullPayload)
         else duoBroadcastQueueRef.current.push(bcast)
       }
       if (openChat.id < 1e12) {
@@ -4263,8 +4268,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     const persistentChannel = partyChatBroadcastChannels.current[chatId]
     if (persistentChannel) {
       duoBroadcastRef.current = persistentChannel
-      // Flush queued messages
-      duoBroadcastQueueRef.current.forEach(p => persistentChannel.send(p))
+      // Flush queued messages — use httpSend to match the new send path.
+      duoBroadcastQueueRef.current.forEach((p: any) => persistentChannel.httpSend(p.event || 'message', p.payload))
       duoBroadcastQueueRef.current = []
       // Reload to catch anything missed while chat was closed
       loadHistory()
@@ -4305,7 +4310,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           duoBroadcastRef.current = channel
-          duoBroadcastQueueRef.current.forEach(p => channel.send(p))
+          duoBroadcastQueueRef.current.forEach((p: any) => channel.httpSend(p.event || 'message', p.payload))
           duoBroadcastQueueRef.current = []
           loadHistory()
           setTimeout(loadHistory, 1500)
@@ -4476,7 +4481,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           communityBroadcastRef.current = channel
-          communityBroadcastQueueRef.current.forEach(p => channel.send(p))
+          communityBroadcastQueueRef.current.forEach((p: any) => channel.httpSend(p.event || 'message', p.payload))
           communityBroadcastQueueRef.current = []
         }
       })
