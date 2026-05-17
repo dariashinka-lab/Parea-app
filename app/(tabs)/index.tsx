@@ -2015,11 +2015,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     const fetchAttendees = async () => {
       const map: Record<number, any[]> = {}
       // Fetch all my passes (both directions) for joined events in one query
-      const { data: passRows } = await supabase
-        .from('passes')
-        .select('passer_id, passed_id, event_id')
-        .or(`passer_id.eq.${userData.dbId},passed_id.eq.${userData.dbId}`)
-        .in('event_id', officialJoined)
+      // Two queries instead of `.or()` — Supabase or-filter with UUIDs was
+      // dropping valid rows for passes (same regression we hit with blocked_users),
+      // letting declined/passed candidates re-appear in VibeCheck.
+      const [{ data: passedByMe }, { data: passedMe }] = await Promise.all([
+        supabase.from('passes').select('passed_id, event_id').eq('passer_id', userData.dbId).in('event_id', officialJoined),
+        supabase.from('passes').select('passer_id, event_id').eq('passed_id', userData.dbId).in('event_id', officialJoined),
+      ])
+      const passRows = [
+        ...(passedByMe || []).map((p: any) => ({ passer_id: userData.dbId, passed_id: p.passed_id, event_id: p.event_id })),
+        ...(passedMe || []).map((p: any) => ({ passer_id: p.passer_id, passed_id: userData.dbId, event_id: p.event_id })),
+      ]
       // Bidirectional block relationships fetched fresh each cycle — realtime
       // doesn't always fire (depends on Supabase replication / RLS / online
       // status), so pulling from DB here makes the filter reliable. Two queries
@@ -3346,20 +3352,33 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             const existingProfiles: any[] = updated[existingIdx].memberProfiles || []
             const newProfiles = [...existingProfiles]
             let added = false
+            // Only treat joiners as "newly joined" once persisted chat state has
+            // loaded AND the chat-ready window has elapsed (3s). Reload triggered
+            // this branch with fresh joiners every time → notif spam + lastMsg
+            // overwrote real conversation preview with "X joined".
+            const isInitialLoad = !persistLoadedState || !chatNotifReadyRef.current
             confirmedJoiners.forEach(joiner => {
               if (!newProfiles.find((p: any) => p.id === joiner.id)) {
                 newProfiles.push(joiner); added = true
-                addNotif({ type: 'member_joined', emoji: '✅', color: '#10B981', title: `${joiner.name} joined the group`, body: ev.title || '', chatId: updated[existingIdx].id })
+                if (!isInitialLoad) {
+                  addNotif({ type: 'member_joined', emoji: '✅', color: '#10B981', title: `${joiner.name} joined the group`, body: ev.title || '', chatId: updated[existingIdx].id })
+                }
               }
             })
             if (!added) return prev
-            updated[existingIdx] = {
+            const base = {
               ...updated[existingIdx],
               hostEventId: evId,
               members: newProfiles.length + 1,
               memberProfiles: newProfiles,
               avatars: newProfiles.map((p: any) => p.photo).filter(Boolean),
               colors: newProfiles.map((p: any) => p.color),
+            }
+            // Only refresh lastMsg/time/isNew when this is a *genuine* live join,
+            // not a reload replay. Without this guard the chat preview gets
+            // stomped on every app restart with "X joined" placeholder.
+            updated[existingIdx] = isInitialLoad ? base : {
+              ...base,
               lastMsg: `✅ ${confirmedJoiners[confirmedJoiners.length - 1]?.name} joined`,
               time: new Date().toISOString(), isNew: true,
             }
@@ -3565,6 +3584,16 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               if (!updated[req.event_id] || updated[req.event_id] === 'pending' || updated[req.event_id] === 'joined') {
                 updated[req.event_id] = 'confirmed'
                 changed = true
+              }
+            }
+            if (req.status === 'rejected') {
+              // Silent rejection — drop the event from local state so it
+              // disappears from Plans/VibeCheck without showing a harsh
+              // "Rejected" badge (matches our hybrid UX decision).
+              if (updated[req.event_id]) {
+                delete updated[req.event_id]
+                changed = true
+                cancelledEventIdsRef.current.add(req.event_id)
               }
             }
           })
@@ -3917,15 +3946,28 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     if (!currentState && ev.type === 'community' && !ev.isHosted) {
       // Insert real join request into DB
       if (userData?.dbId && ev.hostId) {
-        supabase.from('join_requests').insert({
-          event_id: ev.id,
-          requester_id: userData.dbId,
-          host_id: ev.hostId,
-          status: 'pending',
-          transport: transport || null,
-        }).then(({ error }) => {
+        ;(async () => {
+          // Block re-submission if host already rejected us for this event.
+          // Without this, DELETE-then-rejoin loops kept the host's inbox
+          // filling with the same request.
+          const { data: existing } = await supabase.from('join_requests')
+            .select('id, status').eq('event_id', ev.id).eq('requester_id', userData.dbId).maybeSingle()
+          if (existing?.status === 'rejected') {
+            showToast('You can\'t apply to this event', 'Request was declined', '🚫')
+            // Roll back the local state we optimistically set above.
+            setJoinedEvents(prev => { const n = { ...prev }; delete n[ev.id]; return n })
+            return
+          }
+          if (existing) return // already pending/approved/confirmed — nothing to do
+          const { error } = await supabase.from('join_requests').insert({
+            event_id: ev.id,
+            requester_id: userData.dbId,
+            host_id: ev.hostId,
+            status: 'pending',
+            transport: transport || null,
+          })
           if (error) console.warn('join_request insert error:', error.message)
-        })
+        })()
       }
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
@@ -5142,9 +5184,15 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 ...prev,
                 [eventId]: (prev[eventId] || []).filter((r: any) => r.requestId !== joiner.requestId),
               }))
-              if (joiner._real && joiner.requestId) {
-                supabase.from('join_requests').delete().eq('id', joiner.requestId)
-                  .then(({ error }) => { if (error) console.warn('reject error:', error.message) })
+              if (joiner._real) {
+                // UPDATE status='rejected' — keeps the row so joiner can't re-submit.
+                // Match by id when we have it, otherwise by (event_id, requester_id)
+                // pair as a fallback for callers that didn't carry requestId.
+                const q = supabase.from('join_requests').update({ status: 'rejected' })
+                const promise = joiner.requestId
+                  ? q.eq('id', joiner.requestId)
+                  : q.eq('event_id', eventId).eq('requester_id', joiner.id).eq('status', 'pending')
+                promise.then(({ error }) => { if (error) console.warn('reject error:', error.message) })
               }
               showToast('Their request has been removed', 'Request declined ❌', '❌')
             }}
@@ -5164,6 +5212,14 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 supabase.from('passes')
                   .insert({ passer_id: userData.dbId, passed_id: joiner.id, event_id: eventId })
                   .then(({ error }) => { if (error && !error.message.includes('duplicate')) console.warn('passes insert error:', error.message) })
+              }
+              // Also mark the join_request as rejected — otherwise the host poll
+              // refetches it as 'pending' a few seconds later and the joiner
+              // re-appears in the queue. The pass row alone doesn't filter the
+              // pending list, only the AI-score candidate pool.
+              if (joiner._real && joiner.requestId) {
+                supabase.from('join_requests').update({ status: 'rejected' }).eq('id', joiner.requestId)
+                  .then(({ error }) => { if (error) console.warn('pass→reject join_request error:', error.message) })
               }
             }}
             onGoToMessages={() => {

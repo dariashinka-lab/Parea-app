@@ -265,7 +265,13 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               const joinedCrew = joinedChatId
                 ? (crewsByEvent[ev.id] || []).find(c => c.chatId === joinedChatId)
                 : undefined
-              const format        = joinedCrew?.format || userEventFormat[ev.id] || (ev.type === 'official' ? '1+1' : 'squad')
+              // For community events the host doesn't go through joinSheet (they
+              // create the event, no userEventFormat entry), so fall back to the
+              // event's own maxParticipants. 2 = duo, 3-5 = squad, 6+ = party.
+              const commFormatByCap = ev.type === 'community'
+                ? (ev.maxParticipants === 2 ? '1+1' : ev.maxParticipants >= 6 ? 'party' : 'squad')
+                : null
+              const format        = joinedCrew?.format || userEventFormat[ev.id] || commFormatByCap || (ev.type === 'official' ? '1+1' : 'squad')
               const fmt           = FORMAT_CHIP[format]
               const cap           = joinedCrew?.maxSize || VIBE_FORMAT_MAX[format] || 5
               const threshold     = VIBE_FORMAT_THRESHOLD[format] || cap
