@@ -5445,34 +5445,43 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 // Remove from chat_members; if no active members remain, delete the chat
                 // so get_or_create_party_chat creates a fresh one on re-join
                 if (officialChatId) {
-                  supabase.from('chat_members').delete().eq('chat_id', officialChatId).eq('profile_id', userData.dbId)
-                    .then(async () => {
-                      // Check if anyone else with active event_attendees is still in the chat
-                      const { data: remaining } = await supabase.from('chat_members')
-                        .select('profile_id').eq('chat_id', officialChatId)
-                      const remainingIds = (remaining || []).map((r: any) => r.profile_id)
-                      if (remainingIds.length === 0) {
-                        // Chat is empty — delete it so RPC creates a fresh one next time
-                        supabase.from('chats').delete().eq('id', officialChatId)
-                      } else {
-                        // Check if remaining members still have active event_attendees
-                        const { data: activeLeft } = await supabase.from('event_attendees')
-                          .select('profile_id').eq('event_ref_id', ev.id).in('status', ['ready', 'confirmed']).in('profile_id', remainingIds)
-                        if (!activeLeft || activeLeft.length === 0) {
-                          // All remaining members left the event too — delete the chat
-                          supabase.from('chat_members').delete().eq('chat_id', officialChatId)
-                            .then(() => supabase.from('chats').delete().eq('id', officialChatId))
+                  // For duo chats: when one side leaves, the chat is useless to
+                  // the other (just them with no one to talk to). Tear it down
+                  // entirely so the remaining user's app stops showing "Open Chat 2/2"
+                  // and they can re-match fresh on the event.
+                  const leavingChatLocal = chatListRef.current.find((c: any) => c.id === officialChatId)
+                  const isDuoLeave = leavingChatLocal?.type === 'duo'
+                  if (isDuoLeave) {
+                    supabase.from('messages').delete().eq('chat_id', officialChatId)
+                      .then(() => supabase.from('chat_members').delete().eq('chat_id', officialChatId))
+                      .then(() => supabase.from('chats').delete().eq('id', officialChatId))
+                  } else {
+                    supabase.from('chat_members').delete().eq('chat_id', officialChatId).eq('profile_id', userData.dbId)
+                      .then(async () => {
+                        // Check if anyone else with active event_attendees is still in the chat
+                        const { data: remaining } = await supabase.from('chat_members')
+                          .select('profile_id').eq('chat_id', officialChatId)
+                        const remainingIds = (remaining || []).map((r: any) => r.profile_id)
+                        if (remainingIds.length === 0) {
+                          // Chat is empty — delete it so RPC creates a fresh one next time
+                          supabase.from('chats').delete().eq('id', officialChatId)
                         } else {
-                          // Chat survives — write system message so remaining members
-                          // see "X left the group" via realtime in their open chat.
-                          supabase.from('messages').insert({
-                            chat_id: officialChatId,
-                            sender_id: userData.dbId,
-                            text: `${userData.name || 'Someone'} left the group`,
-                          }).then(({ error }) => { if (error) console.warn('leave system msg error:', error.message) })
+                          // Check if remaining members still have active event_attendees
+                          const { data: activeLeft } = await supabase.from('event_attendees')
+                            .select('profile_id').eq('event_ref_id', ev.id).in('status', ['ready', 'confirmed']).in('profile_id', remainingIds)
+                          if (!activeLeft || activeLeft.length === 0) {
+                            supabase.from('chat_members').delete().eq('chat_id', officialChatId)
+                              .then(() => supabase.from('chats').delete().eq('id', officialChatId))
+                          } else {
+                            supabase.from('messages').insert({
+                              chat_id: officialChatId,
+                              sender_id: userData.dbId,
+                              text: `${userData.name || 'Someone'} left the group`,
+                            }).then(({ error }) => { if (error) console.warn('leave system msg error:', error.message) })
+                          }
                         }
-                      }
-                    })
+                      })
+                  }
                 }
                 supabase.from('crew_invites').update({ status: 'cancelled' }).eq('event_ref_id', ev.id).eq('inviter_id', userData.dbId).in('status', ['pending', 'accepted'])
                 supabase.from('crew_invites').update({ status: 'cancelled' }).eq('event_ref_id', ev.id).eq('invitee_id', userData.dbId).in('status', ['pending', 'accepted'])
