@@ -1992,6 +1992,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   const officialEventChatMapRef = useRef<Record<number, number>>({})
   officialEventChatMapRef.current = officialEventChatMap
   const acceptedInviteKeysRef = useRef<Set<string>>(new Set())
+  // Per-chat "last read at" timestamps. When the user opens a chat we record
+  // Date.now() here and persist; an incoming inbox message only marks the chat
+  // unread if its created_at is *after* the saved lastReadAt. Without this,
+  // realtime replay on reconnect re-marked already-read chats as unread.
+  const [lastReadAtMap, setLastReadAtMap] = useState<Record<number, number>>({})
+  const lastReadAtMapRef = useRef<Record<number, number>>({})
+  lastReadAtMapRef.current = lastReadAtMap
   const acceptingInviteRef = useRef<Set<number>>(new Set())
   const partyChatMemberChannels = useRef<Record<number, any>>({})
   const partyChatBroadcastChannels = useRef<Record<number, any>>({})
@@ -2555,6 +2562,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           // invites is idempotent because chatList/officialEventChatMap setters
           // dedup by chat id.
         }
+        if (saved.lastReadAtMap) {
+          setLastReadAtMap(saved.lastReadAtMap)
+          lastReadAtMapRef.current = saved.lastReadAtMap
+        }
         if (saved.officialEventChatMap) {
           setOfficialEventChatMap(saved.officialEventChatMap)
           officialEventChatMapRef.current = saved.officialEventChatMap
@@ -2584,6 +2595,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     AsyncStorage.setItem(PERSIST_KEY, JSON.stringify({
       joinedEvents, userEventFormat, userEventTransport, userCreatedEvents, pendingJoinRequests,
       approvedJoiners, passedRequests, chatList, chatMessages, sentCrewInvites, cancelledEventIds, officialEventChatMap,
+      lastReadAtMap,
       // Persist notifications so dismissed/read state survives app reload and we
       // don't re-add the same "X joined" notif from each polling cycle.
       notifications,
@@ -2913,8 +2925,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           // Mark self as confirmed so we don't appear in others' VibeCheck
           supabase.from('event_attendees').update({ status: 'confirmed' }).eq('event_ref_id', effectiveEventId).eq('profile_id', userData.dbId).then(() => {})
         }
-        showToast('Check your Messages tab for the chat', 'You\'re in! 🎉', '✅')
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+        // Only celebrate on genuinely new chats — skip the toast/haptic when
+        // realtime is replaying memberships during app reconnect.
+        if (chatNotifReadyRef.current && persistLoadedState) {
+          showToast('Check your Messages tab for the chat', 'You\'re in! 🎉', '✅')
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+        }
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -3050,6 +3066,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           const existing = prev[idx]
           const merged = { ...existing, ...newChat }
           if (existing.hostEventId) merged.hostEventId = existing.hostEventId
+          // Don't overwrite live preview with DB's stale placeholder ("Crew
+          // confirmed!" / "You're in the crew!") on reload — keep whatever
+          // the user has been seeing locally if it's there.
+          if (existing.lastMsg) merged.lastMsg = existing.lastMsg
+          if (existing.time) merged.time = existing.time
+          if (existing.isNew === false) merged.isNew = false
           const updated = [...prev]
           updated[idx] = merged
           return updated
@@ -3074,7 +3096,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         setReadyCountMap(prev => { const n = { ...prev }; delete n[chat.event_id]; return n })
         // Mark self as confirmed so we don't appear in others' VibeCheck
         supabase.from('event_attendees').update({ status: 'confirmed' }).eq('event_ref_id', chat.event_id).eq('profile_id', userData.dbId).then(() => {})
-        showToast('Check your Messages tab', 'You\'re in the crew! 🎉', '✅')
+        // Same as realtime handler — suppress the celebration toast when the
+        // fallback poll picks up an existing chat we've already lived in.
+        if (chatNotifReadyRef.current && persistLoadedState) {
+          showToast('Check your Messages tab', 'You\'re in the crew! 🎉', '✅')
+        }
       }
     }
     poll()
@@ -3352,10 +3378,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             const existingProfiles: any[] = updated[existingIdx].memberProfiles || []
             const newProfiles = [...existingProfiles]
             let added = false
-            // Only treat joiners as "newly joined" once persisted chat state has
-            // loaded AND the chat-ready window has elapsed (3s). Reload triggered
-            // this branch with fresh joiners every time → notif spam + lastMsg
-            // overwrote real conversation preview with "X joined".
+            // Notif fires only after the initial-load window. Lifecycle:
+            // reload replays existing members → silent sync, no toast/notif.
+            // Real-time join later → notif. (The party_chat realtime listener
+            // handles the live "X joined" message in-chat separately.)
             const isInitialLoad = !persistLoadedState || !chatNotifReadyRef.current
             confirmedJoiners.forEach(joiner => {
               if (!newProfiles.find((p: any) => p.id === joiner.id)) {
@@ -3366,21 +3392,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               }
             })
             if (!added) return prev
-            const base = {
+            // Never overwrite chat-list lastMsg/time from this poll — real
+            // conversation messages drive the preview. The "X joined" event
+            // arrives as an in-chat system message via a separate realtime
+            // listener and updates lastMsg there.
+            updated[existingIdx] = {
               ...updated[existingIdx],
               hostEventId: evId,
               members: newProfiles.length + 1,
               memberProfiles: newProfiles,
               avatars: newProfiles.map((p: any) => p.photo).filter(Boolean),
               colors: newProfiles.map((p: any) => p.color),
-            }
-            // Only refresh lastMsg/time/isNew when this is a *genuine* live join,
-            // not a reload replay. Without this guard the chat preview gets
-            // stomped on every app restart with "X joined" placeholder.
-            updated[existingIdx] = isInitialLoad ? base : {
-              ...base,
-              lastMsg: `✅ ${confirmedJoiners[confirmedJoiners.length - 1]?.name} joined`,
-              time: new Date().toISOString(), isNew: true,
             }
             return updated
           } else {
@@ -4039,7 +4061,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     const chatEvId = openChat.communityEventId || openChat.hostEventId
     if (chatEvId && userData?.dbId) {
       const payload = { text, sender_id: userData.dbId, created_at: new Date().toISOString(), reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null }
-      supabase.from('messages').insert({ community_event_id: chatEvId, sender_id: userData.dbId, text, reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null })
+      // Include chat_id when we have a real DB id (not the temporary Date.now()
+      // sentinel). Without this the message row carries only community_event_id
+      // and the hydrate-previews query (filtered by chat_id) never finds it,
+      // so the Chats preview keeps showing the "Group chat created!" placeholder.
+      const row: any = { community_event_id: chatEvId, sender_id: userData.dbId, text, reply_to_text: currentReply?.text || null, reply_to_sender: currentReply?.senderName || null }
+      if (typeof openChat.id === 'number' && openChat.id < 1e12) row.chat_id = openChat.id
+      supabase.from('messages').insert(row)
         .then(({ error }) => { if (error) console.warn('message insert error:', error.message) })
       const bcast = { type: 'broadcast', event: 'message', payload }
       if (communityBroadcastRef.current) communityBroadcastRef.current.send(bcast)
@@ -4467,6 +4495,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           || (m.chat_id && c.id === m.chat_id)
         )
         if (!chat) return
+        // If we've already read this chat past the message's timestamp, treat
+        // it as already-read (don't mark isNew=true again). Covers realtime
+        // replay on reconnect after reload.
+        const lastRead = lastReadAtMapRef.current[chat.id] || 0
+        const msgTime = new Date(m.created_at).getTime()
+        const alreadyRead = msgTime <= lastRead
         // Don't early-return when chat is open: race between inbox and chat-specific
         // subscriptions means either path may miss the first message. Dedup by _dbId
         // (further down) prevents duplicates.
@@ -4476,7 +4510,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         setChatList(prev => prev.map(c =>
           c.id === chat.id
-            ? { ...c, lastMsg: chat.type === 'duo' ? m.text : `${senderName}: ${m.text}`, time, isNew: true }
+            ? { ...c, lastMsg: chat.type === 'duo' ? m.text : `${senderName}: ${m.text}`, time, isNew: alreadyRead ? c.isNew : true }
             : c
         ))
         // Also add to chatMessages so User 1 sees it immediately when opening the chat
@@ -5236,7 +5270,18 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             onOpenChat={(chat) => {
               setOpenChat(chat)
               setChatList(prev => prev.map(c => c.id === chat.id ? { ...c, isNew: false } : c))
+              const nowMs = Date.now()
+              setLastReadAtMap(prev => ({ ...prev, [chat.id]: nowMs }))
               markNotifsReadForChat(chat.id)
+              // Telegram-style read receipts: update our chat_members.last_read_at
+              // so the OTHER member's UI can render ✓✓ for messages they sent
+              // before this moment.
+              if (typeof chat.id === 'number' && chat.id < 1e12 && userData?.dbId) {
+                supabase.from('chat_members')
+                  .update({ last_read_at: new Date(nowMs).toISOString() })
+                  .eq('chat_id', chat.id).eq('profile_id', userData.dbId)
+                  .then(({ error }) => { if (error) console.warn('last_read_at update error:', error.message) })
+              }
             }}
             hostedEvents={userCreatedEvents}
             onLeaveChat={(id, addSystemMsg) => {
