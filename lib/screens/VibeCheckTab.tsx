@@ -883,7 +883,12 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                         if (isCrewMode) {
                           const crews = crewsByEvent[ev.id] || []
                           const myCrew = crews.find((c: any) => c.members.some((m: any) => m.id === userData?.dbId))
-                          const maxSize = VIBE_FORMAT_MAX[format] || 5
+                          // Use the crew's own maxSize (party=20 / squad=5 / 1+1=2)
+                          // rather than the viewer's local format pick — if you
+                          // joined a party crew while your own pick was squad,
+                          // the "X spots left" count must reflect the crew you're
+                          // actually in, not your stale local preference.
+                          const maxSize = myCrew?.maxSize || VIBE_FORMAT_MAX[format] || 5
                           // Fallback when user just created/joined and the 5s polling hasn't
                           // refreshed crewsByEvent yet — joinedEvents+officialEventChatMap
                           // already says "they're in a crew", so show the badge immediately.
