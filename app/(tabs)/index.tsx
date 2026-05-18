@@ -3239,9 +3239,24 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     prevPendingRef.current = pendingJoinRequests
   }, [pendingJoinRequests])
 
-  // Watch for host's group becoming full → auto-navigate to chat
+  // Watch for host's group becoming full → auto-navigate to chat.
+  // First run after persist hydration populates the ref with already-full
+  // events as "seen" baseline — only NEW transitions to full trigger the
+  // notif + auto-nav. Previously the ref reset on reload, so every restart
+  // re-fired "Your social is complete!" for events that were already full.
   const prevFullHostEventsRef = useRef<Set<number>>(new Set())
+  const hostFullInitializedRef = useRef(false)
   useEffect(() => {
+    if (!persistLoadedState) return
+    if (!hostFullInitializedRef.current) {
+      userCreatedEvents.forEach(ev => {
+        const slotsTotal = (ev.maxParticipants || 5) - 1
+        const isFull = (approvedJoiners[ev.id] || []).length >= slotsTotal && slotsTotal > 0
+        if (isFull) prevFullHostEventsRef.current.add(ev.id)
+      })
+      hostFullInitializedRef.current = true
+      return
+    }
     userCreatedEvents.forEach(ev => {
       const approved = approvedJoiners[ev.id] || []
       const slotsTotal = (ev.maxParticipants || 5) - 1
@@ -3255,7 +3270,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         }, 1200)
       }
     })
-  }, [approvedJoiners, userCreatedEvents])
+  }, [approvedJoiners, userCreatedEvents, persistLoadedState])
 
   const refillInFlightRef = useRef<Set<string>>(new Set())
   const fetchRequestsRef = useRef<(() => Promise<void>) | null>(null)
@@ -5548,17 +5563,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 const isExpired = (ev: any) => ev.expiresAt
                   ? ev.expiresAt <= now
                   : isEventPast(ev.date_label || ev.time || '')
-                // Trigger Vibe dot for any active joined event the user is in,
-                // including community events the moment the joiner submits a
-                // request (status='pending') — they want immediate visual
-                // feedback, not "wait until host approves".
+                // Trigger Vibe dot for events that still need user action.
+                // Community: dot until joiner is 'confirmed' (then chat exists,
+                // they shouldn't go back to VibeCheck — they go to Chats).
+                // Official: dot for any active joined event (still finding crew).
                 const hasActiveJoined = Object.entries(joinedEvents).some(([id, v]) => {
                   if (!v) return false
                   const ev = allKnownEvs.find(e => e.id === Number(id))
                   if (!ev) return false
                   if (isExpired(ev)) return false
                   if (ev.type === 'official') return true
-                  if (ev.type === 'community' && !ev.isHosted) return true
+                  if (ev.type === 'community' && !ev.isHosted) return v !== 'confirmed'
                   return false
                 })
                 const hasPending = Object.entries(pendingJoinRequests).some(([evId, reqs]) => {
@@ -5568,7 +5583,15 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   if (isExpired(ev)) return false
                   return true
                 })
-                const hasHostActivity = userCreatedEvents.some((ev: any) => !isExpired(ev) && (approvedJoiners[ev.id] || []).length < (ev.maxParticipants || 5) - 1)
+                // hostActivity = pending requests OR approved-but-not-confirmed
+                // (actionable: host needs to follow up). Just having empty spots
+                // doesn't justify a dot — that's the default state of any host.
+                const hasHostActivity = userCreatedEvents.some((ev: any) => {
+                  if (isExpired(ev)) return false
+                  const pending = (pendingJoinRequests[ev.id] || []).length
+                  const approved = (approvedJoiners[ev.id] || []).length
+                  return pending > 0 || approved > 0
+                })
                 if (!(hasActiveJoined || hasPending || hasHostActivity)) return null
                 return <View style={{ position: 'absolute', top: -3, right: -5, width: 8, height: 8, borderRadius: 4, backgroundColor: hasPending ? '#FFD700' : '#43E97B', borderWidth: 1.5, borderColor: '#F8F7FF' }} />
               })()}

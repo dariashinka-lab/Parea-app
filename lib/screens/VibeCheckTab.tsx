@@ -91,6 +91,16 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
   // User-created socials the user requested to join — shown as "awaiting approval"
   const pendingHostedEvents = (allEvents || []).filter((e: any) => joinedEvents?.[e.id] === 'pending' && e.isHosted && notExpired(e))
   const activeHosted = (hostedEvents || []).filter((e: any) => notExpired(e))
+  // "Visible" subset — events that actually render a card in the list. A full
+  // hosted event with no pending/approved is hidden (see line ~290) but used
+  // to count towards the subtitle, causing "1 event · looking for crew..."
+  // to linger over an empty list.
+  const visibleHosted = activeHosted.filter((e: any) => {
+    const slotsTotal = (e.maxParticipants || 5) - 1
+    const slotsLeft = slotsTotal - ((hostConfirmedMembers?.[e.id] || []).length)
+    const hasActivity = (pendingJoinRequests?.[e.id] || []).length > 0 || (approvedJoiners?.[e.id] || []).length > 0
+    return slotsLeft > 0 || hasActivity
+  })
   const hasHostActivity = activeHosted.some((e: any) => (pendingJoinRequests[e.id] || []).length > 0)
   const [previewProfile, setPreviewProfile] = useState<any>(null)
   // Open CrewPoolSheet for a specific event — null means closed
@@ -198,7 +208,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
     const slotsTotal = (ev.maxParticipants || 5) - 1
     return (approvedJoiners?.[ev.id] || []).length >= slotsTotal && (pendingJoinRequests[ev.id] || []).length === 0
   })
-  if (myEvents.length === 0 && myApprovedCommunityEvents.length === 0 && myCommunityEvents.length === 0 && !hasHostActivity && pendingHostedEvents.length === 0 && (activeHosted.length === 0 || allHostedFull)) {
+  if (myEvents.length === 0 && myApprovedCommunityEvents.length === 0 && myCommunityEvents.length === 0 && !hasHostActivity && pendingHostedEvents.length === 0 && visibleHosted.length === 0) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0A0812' }}>
         <AuroraBg />
@@ -236,7 +246,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
     if (hasHostActivity) return '👑 You have join requests'
     const totalReal = myEvents.reduce((sum: number, e: any) => sum + (eventAttendeesMap[e.id]?.length || 0), 0)
     if (myEvents.length > 0 && totalReal > 0) return `${totalReal} ${totalReal === 1 ? 'person' : 'people'} joined · tap to review`
-    const lookingCount = myEvents.length + activeHosted.length
+    const lookingCount = myEvents.length + visibleHosted.length
     if (lookingCount > 0) return `${lookingCount} event${lookingCount > 1 ? 's' : ''} · looking for crew...`
     if (myApprovedCommunityEvents.length > 0) return `You're in — open the chat`
     if (myCommunityEvents.length > 0) return `${myCommunityEvents.length} request${myCommunityEvents.length > 1 ? 's' : ''} · waiting for host`
