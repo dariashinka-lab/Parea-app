@@ -5111,11 +5111,19 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     .select('id').single()
                   if (newDbChat) dbChatId = newDbChat.id
                 }
-                // Add joiner + host to chat_members so both phones can restore the chat
+                // Add joiner + host to chat_members so both phones can restore the chat.
+                // Insert self first (always RLS-safe via profile_id=me), then the host as
+                // a separate call so a failure on the host row doesn't roll back joiner's
+                // own membership and silently leave the chat without any members.
                 if (dbChatId) {
-                  const inserts: any[] = [{ chat_id: dbChatId, profile_id: userData.dbId }]
-                  if (ev.hostId) inserts.push({ chat_id: dbChatId, profile_id: ev.hostId })
-                  await supabase.from('chat_members').upsert(inserts, { onConflict: 'chat_id,profile_id' })
+                  const { error: selfErr } = await supabase.from('chat_members')
+                    .upsert({ chat_id: dbChatId, profile_id: userData.dbId }, { onConflict: 'chat_id,profile_id' })
+                  if (selfErr) console.warn('chat_members self insert error:', selfErr.message)
+                  if (ev.hostId) {
+                    const { error: hostErr } = await supabase.from('chat_members')
+                      .upsert({ chat_id: dbChatId, profile_id: ev.hostId }, { onConflict: 'chat_id,profile_id' })
+                    if (hostErr) console.warn('chat_members host insert error:', hostErr.message)
+                  }
                 }
               }
               // For community events: prepend host profile to members list
