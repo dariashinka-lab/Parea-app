@@ -320,7 +320,17 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                           )}
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <Clock size={11} color="#94A3B8" />
-                            <Text style={{ fontSize: 12, color: '#64748B' }}>{ev.date_label ? `${ev.date_label}${ev.time_label ? ' · ' + ev.time_label : ''}` : prettyEventTime(ev.time) || '—'}</Text>
+                            <Text style={{ fontSize: 12, color: '#64748B' }}>{(() => {
+                              // Scraped official events often have time_label='-' as a placeholder
+                              // when the source page hides the start hour. Show "starts ~ TBD"
+                              // instead of "21/05/2026 · -" so the line still conveys "we just
+                              // don't know the exact hour yet".
+                              const date = ev.date_label
+                              const time = ev.time_label && ev.time_label !== '-' ? ev.time_label : null
+                              if (date && time) return `${date} · ${time}`
+                              if (date) return `${date} · starts ~ TBD`
+                              return prettyEventTime(ev.time) || '—'
+                            })()}</Text>
                           </View>
                         </View>
                       </View>
