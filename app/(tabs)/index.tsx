@@ -1,6 +1,6 @@
 // app/(tabs)/index.tsx — Parea Mobile
 import { Feather, Ionicons } from '@expo/vector-icons'
-import { Users, UsersRound, PartyPopper, Dumbbell, UtensilsCrossed, Briefcase, Leaf, Palette, Pencil, CheckCircle, Zap, Car, MapPin, ThumbsUp, User, Radio, Clock, Search, Trash2, Crown, Check, Minus, MessageCircle, X, ChevronRight, CalendarDays, MoreHorizontal, Coffee, Wine, Cpu, Gamepad2, Music, Drama } from 'lucide-react-native'
+import { Users, UsersRound, PartyPopper, Dumbbell, UtensilsCrossed, Briefcase, Leaf, Palette, Pencil, CheckCircle, Zap, Car, MapPin, ThumbsUp, User, Radio, Clock, Search, Trash2, Crown, Check, Minus, MessageCircle, X, ChevronRight, CalendarDays, MoreHorizontal, Coffee, Wine, Cpu, Gamepad2, Music, Drama, Lock, Globe } from 'lucide-react-native'
 import { Bell as PhBell, MagnifyingGlass, CalendarBlank, CaretDown, CaretLeft, CaretRight, MapPin as PhMapPin, Sparkle, Coffee as PhCoffee, Barbell, Wine as PhWine, GameController, Cpu as PhCpu, Leaf as PhLeaf, ForkKnife, Palette as PhPalette, MusicNotes, UsersThree, Car as PhCar, Star as PhStar, Ticket as PhTicket, PushPin, HouseLine, Couch, Scales, Butterfly, Confetti, Prohibit, Wind, Fire, Drop, CheckCircle as PhCheckCircle, Warning, Clock as PhClock, Trash as PhTrash, ChatTeardrop, HandWaving, Crosshair, TennisBall, Mountains, YinYang, AirplaneTilt, Books, Camera as PhCamera, MaskHappy, Umbrella, MicrophoneStage, WaveSine, Scissors as PhScissors, TShirt, FilmSlate, PersonSimpleSwim, Briefcase as PhBriefcase, Egg, SunHorizon, Handshake, Coins, Laptop, Sailboat } from '../../lib/phosphor-icons'
 import Svg, { Circle, Path } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
@@ -6215,8 +6215,29 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   })()}
 
                   {/* ── Step 4: Vibe + Language + Driving ── */}
-                  {createStep === 4 && (
+                  {createStep === 4 && (() => {
+                    const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                    const summaryTitle = createCustom.trim() || (createType ? createType.charAt(0).toUpperCase() + createType.slice(1) : 'Your plan')
+                    const SIZE_LABEL: Record<string, string> = { duo: '1+1', squad: 'Squad · up to 5', party: 'Party · up to 20' }
+                    const sizeLabel = createSize ? (SIZE_LABEL[createSize] || createSize) : ''
+                    const dateLabel = createDay
+                      ? (() => { const d = new Date(createDay); return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` })()
+                      : 'Date not set'
+                    const timeLabel = createHour || 'Time not set'
+                    const locLabel = createLocation.trim() || 'Location not set'
+                    return (
                     <View style={{ gap: 16 }}>
+                      {/* Mini summary card — sits at top so the user sees what they've built */}
+                      <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.18)' }}>
+                        <Text style={{ fontSize: 11, fontFamily: 'Outfit-Medium', color: '#94A3B8', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Your plan</Text>
+                        <Text style={{ fontSize: 17, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.2, marginBottom: 4 }} numberOfLines={2}>{summaryTitle}</Text>
+                        {sizeLabel ? <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium' }}>{sizeLabel}</Text> : null}
+                        <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium', marginTop: 2 }}>
+                          {dateLabel}<Text style={{ color: '#94A3B8' }}> · </Text>{timeLabel}
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium', marginTop: 2 }} numberOfLines={1}>{locLabel}</Text>
+                      </View>
+
                       {/* Vibe */}
                       <View>
                         <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3, marginBottom: 10 }}>Vibe</Text>
@@ -6254,7 +6275,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           backgroundColor: createDriving ? '#EEF2FF' : '#F8FAFC', borderRadius: 16, padding: 14,
                           borderWidth: 1.5, borderColor: createDriving ? '#6366F1' : 'transparent' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                          <Text style={{ fontSize: 22 }}>🚗</Text>
+                          <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: createDriving ? '#fff' : '#EEF2FF', alignItems: 'center', justifyContent: 'center' }}>
+                            <Car size={18} color="#6366F1" strokeWidth={2} />
+                          </View>
                           <View>
                             <Text style={{ fontSize: 14, fontFamily: 'Outfit-SemiBold', color: '#1E1B4B' }}>I can give a lift</Text>
                             <Text style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>Others can ride with you</Text>
@@ -6268,15 +6291,19 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3, marginBottom: 10 }}>Who can see it</Text>
                         <View style={{ gap: 8 }}>
                           {[
-                            { id: 'public',  label: 'Public',   sub: 'Anyone in the community can find this plan' },
-                            { id: 'private', label: 'Private',  sub: 'Only people with the invite link can join' },
+                            { id: 'public',  label: 'Public',   sub: 'Anyone in the community can find this plan', Icon: Globe },
+                            { id: 'private', label: 'Private',  sub: 'Only people with the invite link can join',  Icon: Lock },
                           ].map(opt => {
                             const sel = createVisibility === opt.id
+                            const OptIcon = opt.Icon
                             return (
                               <TouchableOpacity key={opt.id} onPress={() => setCreateVisibility(opt.id as 'public' | 'private')} activeOpacity={0.85}
                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderRadius: 14,
                                   backgroundColor: sel ? '#EEF2FF' : '#F8FAFC',
                                   borderWidth: 1.5, borderColor: sel ? '#6366F1' : 'transparent' }}>
+                                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: sel ? '#fff' : '#EEF2FF', alignItems: 'center', justifyContent: 'center' }}>
+                                  <OptIcon size={16} color="#6366F1" strokeWidth={2} />
+                                </View>
                                 <View style={{ flex: 1 }}>
                                   <Text style={{ fontSize: 14, fontFamily: 'Outfit-SemiBold', color: sel ? '#4338CA' : '#1E1B4B' }}>{opt.label}</Text>
                                   <Text style={{ fontSize: 12, fontFamily: 'Outfit-Regular', color: '#64748B', marginTop: 1 }}>{opt.sub}</Text>
@@ -6316,7 +6343,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         </View>
                       </View>
                     </View>
-                  )}
+                    )
+                  })()}
 
                 </ScrollView>
 
@@ -6326,7 +6354,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     const isDisabled = (createStep === 1 && !createSize) || (createStep === 2 && (!createType || !createCustom.trim())) || (createStep === 3 && (!createDay || !createHour || !createLocation.trim()))
                     const disabledLabel = ['Pick a format', 'Pick activity & name it', 'Choose date & time', ''][createStep - 1]
                     const activeLabel   = ['Next: Activity →', 'Next: Date & time →', 'Next: Final step →', ''][createStep - 1]
-                    const STEP_COLORS: [string,string][] = [['#6366F1','#818CF8'],['#EC4899','#F472B6'],['#10B981','#34D399'],['#F59E0B','#FBBF24']]
+                    // Single brand gradient across all steps — used to bounce
+                    // pink/green/amber per step but it read as chaotic.
+                    const STEP_COLORS: [string,string][] = [['#6366F1','#818CF8'],['#6366F1','#818CF8'],['#6366F1','#818CF8'],['#6366F1','#818CF8']]
                     if (isDisabled) return (
                       <Pressable
                         onPress={() => {
@@ -6337,8 +6367,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                             setCreateNameError(true)
                           }
                         }}
-                        style={[s.btnPrimary, { opacity: 0.38, backgroundColor: '#CBD5E1' }]}>
-                        <Text style={[s.btnPrimaryText, { color: '#fff', fontFamily: 'Outfit-SemiBold' }]}>{disabledLabel}</Text>
+                        style={[s.btnPrimary, { backgroundColor: '#E0E7FF' }]}>
+                        <Text style={[s.btnPrimaryText, { color: '#A5B4FC', fontFamily: 'Outfit-SemiBold' }]}>{disabledLabel}</Text>
                       </Pressable>
                     )
                     return (
@@ -6349,8 +6379,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       />
                     )
                   })() : (!createVibe || createLangs.length === 0) ? (
-                    <View style={[s.btnPrimary, { opacity: 0.38, backgroundColor: '#CBD5E1' }]}>
-                      <Text style={[s.btnPrimaryText, { color: '#fff', fontFamily: 'Outfit-SemiBold' }]}>
+                    <View style={[s.btnPrimary, { backgroundColor: '#E0E7FF' }]}>
+                      <Text style={[s.btnPrimaryText, { color: '#A5B4FC', fontFamily: 'Outfit-SemiBold' }]}>
                         {!createVibe ? 'Pick a vibe' : 'Pick at least one language'}
                       </Text>
                     </View>
