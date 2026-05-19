@@ -196,54 +196,13 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                 </View>
                 )
               })}
-              {myEvents.length > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4, marginTop: 4 }}>
-                  <CheckCircle size={12} color={PLANS_COLOR} />
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: PLANS_COLOR, letterSpacing: 1, textTransform: 'uppercase' }}>Attending</Text>
-                </View>
-              )}
             </View>
           )}
-          {/* Expired events (hosted + joined) — show for cleanup */}
-          {expiredAllEvents.length > 0 && (
-            <View style={{ gap: 8 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
-                <Clock size={12} color="#94A3B8" />
-                <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, textTransform: 'uppercase' }}>Expired</Text>
-              </View>
-              {expiredAllEvents.map((ev: any) => {
-                const isHosted = expiredHostedEvents.some(he => he.id === ev.id)
-                const dateStr = ev.date_label || ev.time || ''
-                const expiredAt = ev.expiresAt || (parseEventDateTime(dateStr)?.getTime() ?? 0)
-                const ago = (() => {
-                  if (!expiredAt) return ''
-                  const diffMs = Date.now() - expiredAt
-                  const days = Math.floor(diffMs / 86400000)
-                  if (days > 0) return `${days}d ago`
-                  const hours = Math.floor(diffMs / 3600000)
-                  if (hours > 0) return `${hours}h ago`
-                  const mins = Math.floor(diffMs / 60000)
-                  return mins > 0 ? `${mins}m ago` : 'just now'
-                })()
-                return (
-                  <View key={ev.id} style={{ borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.04)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}>
-                    <Text style={{ fontSize: 18 }}>{CATEGORY_EMOJI[ev.category] || '📅'}</Text>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B' }} numberOfLines={1}>{ev.title}</Text>
-                      <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }} numberOfLines={1}>
-                        {prettyEventTime(dateStr) || 'Past event'}{ago ? ` · ${ago}` : ''}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => isHosted ? onCancelHostedEvent?.(ev) : onLeaveEvent?.(ev)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={{ padding: 4 }}
-                    >
-                      <Feather name="trash-2" size={16} color="#94A3B8" />
-                    </TouchableOpacity>
-                  </View>
-                )
-              })}
+          {/* Attending — events the user joined (not as host) */}
+          {myEvents.length > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
+              <CheckCircle size={12} color={PLANS_COLOR} />
+              <Text style={{ fontSize: 11, fontWeight: '800', color: PLANS_COLOR, letterSpacing: 1, textTransform: 'uppercase' }}>Attending</Text>
             </View>
           )}
           {myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
@@ -453,6 +412,48 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                 </View>
               )
             })
+          )}
+          {/* Expired events — last, visually muted so they don't compete with upcoming plans */}
+          {expiredAllEvents.length > 0 && (
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
+                <Clock size={12} color="#94A3B8" />
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, textTransform: 'uppercase' }}>Expired</Text>
+              </View>
+              {expiredAllEvents.map((ev: any) => {
+                const isHosted = expiredHostedEvents.some(he => he.id === ev.id)
+                const dateStr = ev.date_label || ev.time || ''
+                const expiredAt = ev.expiresAt || (parseEventDateTime(dateStr)?.getTime() ?? 0)
+                const ago = (() => {
+                  if (!expiredAt) return ''
+                  const diffMs = Date.now() - expiredAt
+                  const days = Math.floor(diffMs / 86400000)
+                  if (days > 0) return `${days}d ago`
+                  const hours = Math.floor(diffMs / 3600000)
+                  if (hours > 0) return `${hours}h ago`
+                  const mins = Math.floor(diffMs / 60000)
+                  return mins > 0 ? `${mins}m ago` : 'just now'
+                })()
+                return (
+                  <View key={ev.id} style={{ borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.04)', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, opacity: 0.7 }}>
+                    <Text style={{ fontSize: 18 }}>{CATEGORY_EMOJI[ev.category] || '📅'}</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B' }} numberOfLines={1}>{ev.title}</Text>
+                      <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }} numberOfLines={1}>
+                        {prettyEventTime(dateStr) || 'Past event'}{ago ? ` · ${ago}` : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => isHosted ? onCancelHostedEvent?.(ev) : onLeaveEvent?.(ev)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Feather name="trash-2" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
+                )
+              })}
+            </View>
           )}
         </ScrollView>
       )}
