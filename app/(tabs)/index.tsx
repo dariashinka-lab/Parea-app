@@ -2320,9 +2320,24 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         .filter((id: any) => typeof id === 'number')
       if (dbChatIds.length === 0) return
       // Skip chats already in local list (realtime / AsyncStorage already
-      // captured them) and chats whose event was explicitly cancelled.
+      // captured them) and chats whose event was explicitly cancelled. Dedup
+      // by event_id too — older local chats may carry a "stable local id"
+      // (-1_000_000 - eventId) while DB has the real numeric chat id, so
+      // matching only on chat.id would surface both copies.
       const localIds = new Set(chatListRef.current.map((c: any) => c.id))
-      const missingIds = dbChatIds.filter((id: number) => !localIds.has(id))
+      const localEventIds = new Set(
+        chatListRef.current
+          .map((c: any) => c.communityEventId ?? c.hostEventId ?? c.eventRefId)
+          .filter((v: any) => v != null)
+      )
+      const dbChatsById: Record<number, any> = {}
+      ;(memberships as any[]).forEach(m => { const c = m.chats as any; if (c) dbChatsById[c.id] = c })
+      const missingIds = dbChatIds.filter((id: number) => {
+        if (localIds.has(id)) return false
+        const evId = dbChatsById[id]?.event_id
+        if (evId && localEventIds.has(evId)) return false
+        return true
+      })
       if (missingIds.length === 0) return
       // Pull members for the missing chats so card avatars/counts render.
       const { data: allMembers } = await supabase
