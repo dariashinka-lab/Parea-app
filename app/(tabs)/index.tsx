@@ -1629,6 +1629,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   const [createCategory, setCreateCategory] = useState<string>('Sport')
   const [createVibe, setCreateVibe] = useState<string | null>(null)
   const [createCustom, setCreateCustom] = useState('')
+  // True only after the user taps the disabled Next without filling the name.
+  // Resets the moment they start typing so the input doesn't sit in red.
+  const [createNameError, setCreateNameError] = useState(false)
   const [createImage, setCreateImage] = useState<{ uri: string; base64: string } | null>(null)
   const createScrollRef = useRef<ScrollView>(null)
   // Scroll create form to top on step change
@@ -5787,7 +5790,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         <Modal visible={createOpen} animationType="slide" onRequestClose={() => {
           setCreateOpen(false); setCreateStep(1); setCreateSize(null); setCreateType(null);
           setCreateDay(''); setCreateHour(''); setCreateLocation(''); setCreateDriving(false);
-          setCreateLangs([]); setCreateVibe(null); setCreateCustom(''); setCreateImage(null); setCreateVisibility('public');
+          setCreateLangs([]); setCreateVibe(null); setCreateCustom(''); setCreateNameError(false); setCreateImage(null); setCreateVisibility('public');
           setCalViewYear(new Date().getFullYear()); setCalViewMonth(new Date().getMonth());
         }}>
           <LinearGradient colors={['#F5F3FF', '#EEF2FF', '#F0F9FF']} style={s.fill}>
@@ -5985,12 +5988,14 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           <Text style={{ fontSize: 12, fontWeight: '800', color: '#EF4444' }}>*</Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10,
-                          backgroundColor: createCustom.length > 0 ? '#EEF2FF' : '#FFF7ED',
+                          backgroundColor: createNameError ? '#FEF2F2' : (createCustom.length > 0 ? '#EEF2FF' : '#fff'),
                           borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
-                          borderWidth: 1.5, borderColor: createCustom.length > 0 ? '#6366F1' : '#FB923C' }}>
-                          <Pencil size={15} color={createCustom.length > 0 ? '#6366F1' : '#F97316'} strokeWidth={2} />
-                          <TextInput value={createCustom} onChangeText={setCreateCustom}
-                            placeholder="e.g. Wine & chat at Marina" placeholderTextColor="#9A3412"
+                          borderWidth: 1.5,
+                          borderColor: createNameError ? '#EF4444' : (createCustom.length > 0 ? '#6366F1' : 'rgba(139, 92, 246, 0.18)') }}>
+                          <Pencil size={15} color={createNameError ? '#EF4444' : (createCustom.length > 0 ? '#6366F1' : '#94A3B8')} strokeWidth={2} />
+                          <TextInput value={createCustom}
+                            onChangeText={(t) => { setCreateCustom(t); if (createNameError) setCreateNameError(false) }}
+                            placeholder="e.g. Wine & chat at Marina" placeholderTextColor="#94A3B8"
                             returnKeyType="done"
                             onFocus={() => setTimeout(() => createScrollRef.current?.scrollToEnd({ animated: true }), 300)}
                             style={{ flex: 1, fontSize: 14, fontFamily: 'Outfit-SemiBold', color: '#1E1B4B' }} />
@@ -6000,6 +6005,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                             </TouchableOpacity>
                           )}
                         </View>
+                        {createNameError && (
+                          <Text style={{ fontSize: 12, color: '#EF4444', marginTop: 6, fontWeight: '600' }}>
+                            Give your plan a name first
+                          </Text>
+                        )}
                       </View>
                     )
                   })()}
@@ -6312,9 +6322,18 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     const activeLabel   = ['Next: Activity →', 'Next: Date & time →', 'Next: Final step →', ''][createStep - 1]
                     const STEP_COLORS: [string,string][] = [['#6366F1','#818CF8'],['#EC4899','#F472B6'],['#10B981','#34D399'],['#F59E0B','#FBBF24']]
                     if (isDisabled) return (
-                      <View style={[s.btnPrimary, { opacity: 0.38, backgroundColor: '#CBD5E1' }]}>
+                      <Pressable
+                        onPress={() => {
+                          // Flag the name field red only when the missing piece
+                          // is the plan name on step 2 — other disabled cases
+                          // (no format / no date) keep their own affordances.
+                          if (createStep === 2 && !createCustom.trim()) {
+                            setCreateNameError(true)
+                          }
+                        }}
+                        style={[s.btnPrimary, { opacity: 0.38, backgroundColor: '#CBD5E1' }]}>
                         <Text style={[s.btnPrimaryText, { color: '#fff', fontFamily: 'Outfit-SemiBold' }]}>{disabledLabel}</Text>
-                      </View>
+                      </Pressable>
                     )
                     return (
                       <BreathingButton
