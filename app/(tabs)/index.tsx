@@ -2341,6 +2341,20 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         .in('chat_id', missingIds)
       const inviteByChat: Record<number, any> = {}
       ;(duoInvites || []).forEach((i: any) => { inviteByChat[i.chat_id] = i })
+      // For group chats event_id points to community_events — pull titles so
+      // the chat card has a name (otherwise it renders as "Crew" with no event).
+      const groupEventIds = (memberships as any[])
+        .map(m => m.chats as any)
+        .filter((c: any) => c && missingIds.includes(c.id) && c.type === 'group' && c.event_id && c.event_id < 100000)
+        .map((c: any) => c.event_id)
+      const communityTitleById: Record<number, string> = {}
+      if (groupEventIds.length > 0) {
+        const { data: communityRows } = await supabase
+          .from('community_events')
+          .select('id, title')
+          .in('id', groupEventIds)
+        ;(communityRows || []).forEach((r: any) => { communityTitleById[r.id] = r.title })
+      }
       const newChats = (memberships as any[])
         .map(m => m.chats as any)
         .filter((c: any) => c && missingIds.includes(c.id))
@@ -2358,9 +2372,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             eventRefId: invite?.event_ref_id ?? null,
             communityEventId: c.type === 'group' && c.event_id && c.event_id < 100000 ? c.event_id : undefined,
             hostEventId: c.type === 'group' && c.event_id ? c.event_id : undefined,
-            event: invite?.event_title || '',
+            event: invite?.event_title || (c.event_id ? communityTitleById[c.event_id] : '') || '',
             eventEmoji: '🎉',
-            name: c.type === 'duo' && others[0]?.name ? others[0].name : (c.type === 'group' ? 'Crew' : 'Your crew'),
+            name: c.type === 'duo' && others[0]?.name ? others[0].name : ((c.event_id && communityTitleById[c.event_id]) || (c.type === 'group' ? 'Crew' : 'Your crew')),
             partnerProfile: c.type === 'duo' ? others[0] : undefined,
             memberProfiles: others,
             members: (membersByChat[c.id] || []).length,
