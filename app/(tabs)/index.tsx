@@ -5984,7 +5984,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         </View>
                         {/* Plan name — always visible, required */}
                         <View style={{ marginTop: 18, marginBottom: 10 }}>
-                          <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3 }}>Name your plan ✨</Text>
+                          <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3 }}>Name your plan</Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10,
                           backgroundColor: createNameError ? '#FEF2F2' : (createCustom.length > 0 ? '#EEF2FF' : '#fff'),
