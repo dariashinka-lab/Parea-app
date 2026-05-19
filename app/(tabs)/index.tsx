@@ -1632,6 +1632,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // True only after the user taps the disabled Next without filling the name.
   // Resets the moment they start typing so the input doesn't sit in red.
   const [createNameError, setCreateNameError] = useState(false)
+  // Summary on step 4 lives behind a "Review your plan" toggle so the
+  // section doesn't push the actual fields below the fold.
+  const [createSummaryOpen, setCreateSummaryOpen] = useState(false)
   const [createImage, setCreateImage] = useState<{ uri: string; base64: string } | null>(null)
   const createScrollRef = useRef<ScrollView>(null)
   // Scroll create form to top on step change
@@ -5791,6 +5794,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           setCreateOpen(false); setCreateStep(1); setCreateSize(null); setCreateType(null);
           setCreateDay(''); setCreateHour(''); setCreateLocation(''); setCreateDriving(false);
           setCreateLangs([]); setCreateVibe(null); setCreateCustom(''); setCreateNameError(false); setCreateImage(null); setCreateVisibility('public');
+          setCreateSummaryOpen(false);
           setCalViewYear(new Date().getFullYear()); setCalViewMonth(new Date().getMonth());
         }}>
           <LinearGradient colors={['#F5F3FF', '#EEF2FF', '#F0F9FF']} style={s.fill}>
@@ -6227,15 +6231,29 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     const locLabel = createLocation.trim() || 'Location not set'
                     return (
                     <View style={{ gap: 16 }}>
-                      {/* Mini summary card — sits at top so the user sees what they've built */}
-                      <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.18)' }}>
-                        <Text style={{ fontSize: 11, fontFamily: 'Outfit-Medium', color: '#94A3B8', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>Your plan</Text>
-                        <Text style={{ fontSize: 17, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.2, marginBottom: 4 }} numberOfLines={2}>{summaryTitle}</Text>
-                        {sizeLabel ? <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium' }}>{sizeLabel}</Text> : null}
-                        <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium', marginTop: 2 }}>
-                          {dateLabel}<Text style={{ color: '#94A3B8' }}> · </Text>{timeLabel}
-                        </Text>
-                        <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium', marginTop: 2 }} numberOfLines={1}>{locLabel}</Text>
+                      {/* Collapsible summary — toggled by a single row at the top */}
+                      <View style={{ backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.18)', overflow: 'hidden' }}>
+                        <TouchableOpacity activeOpacity={0.7}
+                          onPress={() => setCreateSummaryOpen(v => !v)}
+                          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 11, fontFamily: 'Outfit-Medium', color: '#94A3B8', letterSpacing: 0.4, textTransform: 'uppercase' }}>Your plan</Text>
+                            <Text style={{ fontSize: 15, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.2, marginTop: 2 }} numberOfLines={1}>
+                              {createSummaryOpen ? 'Hide details' : 'Review your plan'}
+                            </Text>
+                          </View>
+                          <Feather name={createSummaryOpen ? 'chevron-up' : 'chevron-down'} size={20} color="#6366F1" />
+                        </TouchableOpacity>
+                        {createSummaryOpen && (
+                          <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 2, borderTopWidth: 1, borderTopColor: 'rgba(139, 92, 246, 0.08)' }}>
+                            <Text style={{ fontSize: 17, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.2, marginTop: 10, marginBottom: 4 }} numberOfLines={2}>{summaryTitle}</Text>
+                            {sizeLabel ? <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium' }}>{sizeLabel}</Text> : null}
+                            <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium', marginTop: 2 }}>
+                              {dateLabel}<Text style={{ color: '#94A3B8' }}> · </Text>{timeLabel}
+                            </Text>
+                            <Text style={{ fontSize: 13, color: '#475569', fontFamily: 'Outfit-Medium', marginTop: 2 }} numberOfLines={1}>{locLabel}</Text>
+                          </View>
+                        )}
                       </View>
 
                       {/* Vibe */}
