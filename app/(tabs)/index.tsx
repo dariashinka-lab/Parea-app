@@ -6023,29 +6023,34 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     const dayLabel = createDay
                       ? createDay === todayIso ? 'Today'
                         : createDay === tomorrowIso ? 'Tomorrow'
-                        : (() => { const d = new Date(createDay); return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` })()
+                        : (() => { const d = new Date(createDay); return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` })()
                       : 'Pick date'
                     return (
                       <View>
-                        {/* When pills */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.6, textTransform: 'uppercase' }}>When</Text>
-                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#EF4444' }}>*</Text>
+                        {/* Date & time — two compact cards with internal label */}
+                        <View style={{ marginBottom: 8 }}>
+                          <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3 }}>Date & time</Text>
                         </View>
-                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
                           <TouchableOpacity onPress={() => setDateSheetOpen(true)} activeOpacity={0.85}
-                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 14,
-                              backgroundColor: createDay ? '#EEF2FF' : '#FFF7ED',
-                              borderWidth: 1.5, borderColor: createDay ? '#6366F1' : '#FB923C' }}>
-                            <Text style={{ fontSize: 17 }}>📅</Text>
-                            <Text style={{ flex: 1, fontSize: 14, fontFamily: 'Outfit-SemiBold', color: createDay ? '#1E1B4B' : '#9A3412' }} numberOfLines={1}>{dayLabel}</Text>
+                            style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14,
+                              backgroundColor: createDay ? '#EEF2FF' : '#fff',
+                              borderWidth: 1.5, borderColor: createDay ? '#6366F1' : 'rgba(139, 92, 246, 0.18)' }}>
+                            <Text style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'Outfit-Medium', marginBottom: 4 }}>Date</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={{ fontSize: 15 }}>📅</Text>
+                              <Text style={{ flex: 1, fontSize: 15, fontFamily: 'Outfit-SemiBold', color: createDay ? '#1E1B4B' : '#94A3B8' }} numberOfLines={1}>{dayLabel}</Text>
+                            </View>
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => setTimeSheetOpen(true)} activeOpacity={0.85}
-                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 14,
-                              backgroundColor: createHour ? '#EEF2FF' : '#FFF7ED',
-                              borderWidth: 1.5, borderColor: createHour ? '#6366F1' : '#FB923C' }}>
-                            <Text style={{ fontSize: 17 }}>🕐</Text>
-                            <Text style={{ flex: 1, fontSize: 14, fontFamily: 'Outfit-SemiBold', color: createHour ? '#1E1B4B' : '#9A3412' }} numberOfLines={1}>{createHour || 'Pick time'}</Text>
+                            style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14,
+                              backgroundColor: createHour ? '#EEF2FF' : '#fff',
+                              borderWidth: 1.5, borderColor: createHour ? '#6366F1' : 'rgba(139, 92, 246, 0.18)' }}>
+                            <Text style={{ fontSize: 11, color: '#94A3B8', fontFamily: 'Outfit-Medium', marginBottom: 4 }}>Time</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={{ fontSize: 15 }}>🕐</Text>
+                              <Text style={{ flex: 1, fontSize: 15, fontFamily: 'Outfit-SemiBold', color: createHour ? '#1E1B4B' : '#94A3B8' }} numberOfLines={1}>{createHour || 'Pick time'}</Text>
+                            </View>
                           </TouchableOpacity>
                         </View>
 
@@ -6116,25 +6121,24 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         </Modal>
 
                         {/* Location */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.6, textTransform: 'uppercase' }}>Location</Text>
-                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#EF4444' }}>*</Text>
+                        <View style={{ marginBottom: 8 }}>
+                          <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3 }}>Location</Text>
                         </View>
                         <TouchableOpacity onPress={() => setLocationPickerOpen(true)}
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14,
                             paddingHorizontal: 14, paddingVertical: 14, borderWidth: 1.5,
-                            backgroundColor: createLocation.length > 0 ? '#EEF2FF' : '#FFF7ED',
-                            borderColor: createLocation.length > 0 ? '#6366F1' : '#FB923C' }}>
-                          <Feather name="map-pin" size={16} color={createLocation.length > 0 ? '#6366F1' : '#F97316'} />
-                          <Text style={{ flex: 1, fontSize: 14, fontFamily: 'Outfit-SemiBold', color: createLocation.length > 0 ? '#1E1B4B' : '#9A3412' }} numberOfLines={1}>
-                            {createLocation.length > 0 ? createLocation : 'Tap to pick on map or search'}
+                            backgroundColor: createLocation.length > 0 ? '#EEF2FF' : '#fff',
+                            borderColor: createLocation.length > 0 ? '#6366F1' : 'rgba(139, 92, 246, 0.18)' }}>
+                          <Feather name="map-pin" size={16} color={createLocation.length > 0 ? '#6366F1' : '#94A3B8'} />
+                          <Text style={{ flex: 1, fontSize: 14, fontFamily: 'Outfit-SemiBold', color: createLocation.length > 0 ? '#1E1B4B' : '#94A3B8' }} numberOfLines={1}>
+                            {createLocation.length > 0 ? createLocation : 'Search venue or pick on map'}
                           </Text>
                           {createLocation.length > 0 ? (
                             <TouchableOpacity onPress={() => { setCreateLocation(''); setLocationCoords(null) }}>
                               <Feather name="x" size={16} color="#94A3B8" />
                             </TouchableOpacity>
                           ) : (
-                            <Feather name="chevron-right" size={16} color="#F97316" />
+                            <Feather name="chevron-right" size={16} color="#94A3B8" />
                           )}
                         </TouchableOpacity>
 
@@ -6156,8 +6160,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         </Modal>
 
                         {/* Description */}
-                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>Description <Text style={{ fontSize: 11, fontWeight: '500', textTransform: 'none' }}>(optional)</Text></Text>
-                        <View style={{ backgroundColor: '#F8FAFC', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1.5, borderColor: createDescription.length > 0 ? '#6366F1' : 'transparent' }}>
+                        <View style={{ marginTop: 18, marginBottom: 8 }}>
+                          <Text style={{ fontSize: 18, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3 }}>What should people know?</Text>
+                          <Text style={{ fontSize: 12, color: '#94A3B8', fontFamily: 'Outfit-Medium', marginTop: 2 }}>Optional</Text>
+                        </View>
+                        <View style={{ backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11, borderWidth: 1.5, borderColor: createDescription.length > 0 ? '#6366F1' : 'rgba(139, 92, 246, 0.18)' }}>
                           <TextInput
                             value={createDescription}
                             onChangeText={setCreateDescription}
@@ -6169,8 +6176,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           />
                         </View>
 
-                        {/* Cover image — last, optional */}
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10, marginTop: 18 }}>Cover Photo <Text style={{ fontSize: 11, fontWeight: '500', textTransform: 'none' }}>(optional)</Text></Text>
+                        {/* Cover photo — optional, compact horizontal card */}
                         <TouchableOpacity activeOpacity={0.8} onPress={() => {
                           const pickImage = async () => {
                             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -6188,20 +6194,21 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                             [{ text: 'Cancel', style: 'cancel' }, { text: 'I agree', onPress: pickImage }]
                           )
                         }}
-                          style={{ height: 180, borderRadius: 16, overflow: 'hidden', backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: createImage ? '#6366F1' : '#E2E8F0', borderStyle: createImage ? 'solid' : 'dashed', alignItems: 'center', justifyContent: 'center' }}>
+                          style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1.5, borderColor: createImage ? '#6366F1' : 'rgba(139, 92, 246, 0.18)' }}>
                           {createImage ? (
-                            <>
-                              <Image source={{ uri: createImage.uri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
-                              <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 }}>
-                                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Change</Text>
-                              </View>
-                            </>
+                            <Image source={{ uri: createImage.uri }} style={{ width: 56, height: 56, borderRadius: 12 }} resizeMode="cover" />
                           ) : (
-                            <View style={{ alignItems: 'center', gap: 8 }}>
-                              <Feather name="image" size={28} color="#94A3B8" />
-                              <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '600' }}>Add a cover photo</Text>
+                            <View style={{ width: 56, height: 56, borderRadius: 12, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' }}>
+                              <Feather name="image" size={22} color="#94A3B8" />
                             </View>
                           )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontFamily: 'Outfit-SemiBold', color: '#1E1B4B' }}>
+                              {createImage ? 'Change cover photo' : 'Add cover photo'}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#94A3B8', fontFamily: 'Outfit-Medium', marginTop: 2 }}>Optional</Text>
+                          </View>
+                          <Feather name="chevron-right" size={16} color="#94A3B8" />
                         </TouchableOpacity>
                       </View>
                     )
