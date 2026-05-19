@@ -26,11 +26,26 @@ BASE_URL = 'https://www.soldoutticketbox.com'
 
 CITY_KEYWORDS = ['NICOSIA', 'LIMASSOL', 'PAPHOS', 'LARNACA', 'FAMAGUSTA', 'LEFKOSIA', 'LEMESOS']
 
+# Greek venue names map to English city. Cyprus venue pages frequently render
+# the city in Greek even on the English-locale URL (theatres like
+# ΜΑΡΚΙΔΕΙΟ ΘΕΑΤΡΟ ΠΑΦΟΥ), so without this mapping `extract_city` would
+# silently return '' and the app would show the raw Greek string as location.
+GREEK_CITY_MAP = {
+    'ΠΑΦΟΣ': 'Paphos', 'ΠΑΦΟΥ': 'Paphos',
+    'ΛΕΥΚΩΣΙΑ': 'Nicosia', 'ΛΕΥΚΩΣΙΑΣ': 'Nicosia',
+    'ΛΕΜΕΣΟΣ': 'Limassol', 'ΛΕΜΕΣΟΥ': 'Limassol',
+    'ΛΑΡΝΑΚΑ': 'Larnaca', 'ΛΑΡΝΑΚΑΣ': 'Larnaca',
+    'ΑΜΜΟΧΩΣΤΟΣ': 'Famagusta', 'ΑΜΜΟΧΩΣΤΟΥ': 'Famagusta',
+}
+
 def extract_city(venue_text):
     upper = venue_text.upper()
     for city in CITY_KEYWORDS:
         if city in upper:
             return city.capitalize()
+    for greek, english in GREEK_CITY_MAP.items():
+        if greek in upper:
+            return english
     return ''
 
 def clean_date(date_str):
@@ -161,7 +176,11 @@ async def scrape_event(page, url):
         # Fallback: newer soldoutticketbox layout drops the "When: / Where:" labels
         # entirely and only renders the Event Dates table — rows like:
         #   <td><strong>21/05/2026</strong></td><td><strong>19:30</strong></td><td><strong><a>Venue</a></strong></td>
-        # Pull the first row as the canonical start; the rest are extra showings.
+        # Take the first row as the canonical start, but walk every row to
+        # collect every city the event tours through — without this the city
+        # filter in-app misses tours that play multiple cities (Barcelona
+        # Flamenco's Paphos/Nicosia/Limassol leg, etc).
+        all_cities = []
         if not date:
             date_re = re.compile(r'^\d{1,2}/\d{1,2}/\d{4}$')
             time_re = re.compile(r'^\d{1,2}:\d{2}$')
@@ -171,15 +190,22 @@ async def scrape_event(page, url):
                 if not cand_date:
                     continue
                 cand_time = next((s for s in strongs if time_re.match(s)), None)
-                date = cand_date
-                if cand_time:
-                    time_str = cand_time
-                if not venue:
-                    # Venue link sits in another <strong> in the same row.
-                    a = tr.find('a')
-                    if a:
-                        venue = a.get_text(strip=True)
-                break
+                a = tr.find('a')
+                row_venue = a.get_text(strip=True) if a else ''
+                if not date:
+                    date = cand_date
+                    if cand_time:
+                        time_str = cand_time
+                    if not venue and row_venue:
+                        venue = row_venue
+                row_city = extract_city(row_venue) if row_venue else ''
+                if row_city and row_city not in all_cities:
+                    all_cities.append(row_city)
+        # If we picked up multiple cities from the tour table, overwrite the
+        # single-row venue with the joined city list so the in-app city filter
+        # matches every leg of the tour.
+        if len(all_cities) > 1:
+            venue = ', '.join(all_cities)
 
         # Description — only text after "About the event:" marker
         desc = ''
@@ -192,7 +218,10 @@ async def scrape_event(page, url):
                     after = after[:after.find(stop)]
             desc = after.strip()[:800]
 
-        city = extract_city(venue)
+        # Prefer the first city encountered in the Event Dates tour (tour order
+        # = canonical start). extract_city(joined-list) returns whichever city
+        # matches CITY_KEYWORDS first, which is alphabetical-ish, not chronological.
+        city = all_cities[0] if all_cities else extract_city(venue)
 
         # Category
         category = ''
