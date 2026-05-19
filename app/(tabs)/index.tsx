@@ -45,6 +45,7 @@ import { MessagesTab } from '../../lib/screens/MessagesTab'
 import { VibeCheckTab } from '../../lib/screens/VibeCheckTab'
 import { ChatScreen } from '../../lib/screens/ChatScreen'
 import { useChats } from '../../lib/hooks/useChats'
+import { useNotifs, BELL_TYPES, CHAT_TYPES, PLANS_TYPES, Notif } from '../../lib/hooks/useNotifs'
 import { uploadPhotoToStorage, isImageSafe } from '../../lib/photo-helpers'
 import { SOCIAL_ENERGY } from '../../lib/social-energy'
 import { s } from '../../lib/feed-styles'
@@ -2599,21 +2600,20 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   const [passedRequests, setPassedRequests] = useState<Record<number, string[]>>({})
 
   // ── Notifications state (declared early so persist useEffect below can use it) ──
-  type Notif = { id: string; type: string; title: string; body: string; emoji: string; color: string; time: number; read: boolean; chatId?: number; eventId?: number }
-  const BELL_TYPES = ['welcome', 'host_full', 'event_cancelled', 'reminder_24h', 'reminder_2h']
-  const CHAT_TYPES = ['match', 'confirmed', 'group_chat', 'new_message', 'member_joined', 'crew_ready']
-  const PLANS_TYPES = ['join_request', 'member_left', 'reminder_24h', 'reminder_2h']
-  const [notifications, setNotifications] = useState<Notif[]>([])
-  const [notifOpen, setNotifOpen] = useState(false)
-  const bellShake = useRef(new Animated.Value(0)).current
-  const notifPanelY = useRef(new Animated.Value(-600)).current
+  // Core state + actions live in useNotifs hook; BELL_TYPES/CHAT_TYPES/PLANS_TYPES
+  // and Notif type re-exported from there. Only refs unrelated to notif state
+  // itself (prevPendingRef, prevChatCountRef) stay inline.
+  const {
+    notifications, setNotifications,
+    notifOpen, setNotifOpen,
+    bellShake, notifPanelY,
+    seenNotifKeysRef,
+    unreadCount,
+    addNotif,
+    dismissNotif,
+  } = useNotifs({ persistLoadedRef: persistLoaded })
   const prevPendingRef = useRef<Record<number, any[]>>({})
   const prevChatCountRef = useRef(0)
-  // Keys of notifications ever seen (persisted) — dedupe across app restarts
-  // even after user dismissed them. Otherwise polling keeps re-firing the
-  // same "Host approved your request!" / "Group chat is live!" on every reload
-  // because dedupe only looks at currently-visible notifs in `prev`.
-  const seenNotifKeysRef = useRef<Set<string>>(new Set())
 
   // ── Persist & restore state ───────────────────────────────────────────────
   const PERSIST_KEY = `parea_feed_${userData?.authId || 'local'}`
@@ -2784,53 +2784,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   }, [userData?.socialEnergy, userData?.drinksPref, userData?.smokingPref])
 
   // ── Notifications ─────────────────────────────────────────────────────────
-  // (Notif type + state moved up earlier in the component so the persist
-  //  useEffect can reference `notifications` and `seenNotifKeysRef` without
-  //  TS hoisting errors.)
-  const unreadCount = notifications.filter(n => !n.read).length
-
-  const notifKey = (n: { type: string; title: string; body?: string; chatId?: number }) =>
-    `${n.type}|${n.title}|${n.body || ''}|${n.chatId || 0}`
-
-  const addNotif = (n: Omit<Notif, 'id' | 'time' | 'read'>) => {
-    // Skip until persist load completes — otherwise polling fires before
-    // seen-keys is restored from storage, bypassing dedupe → dupe notifs.
-    if (!persistLoaded.current) return
-    const key = notifKey(n as any)
-    // First check the persistent seen set — covers dismissed notifs too
-    if (seenNotifKeysRef.current.has(key)) return
-    let isDup = false
-    setNotifications(prev => {
-      const dup = prev.find(p =>
-        p.type === n.type
-        && p.title === n.title
-        && (p.body || '') === (n.body || '')
-        && (p.chatId || 0) === ((n as any).chatId || 0)
-      )
-      if (dup) { isDup = true; return prev }
-      const newN: Notif = { ...n, id: `${Date.now()}-${Math.random()}`, time: Date.now(), read: false }
-      return [newN, ...prev].slice(0, 30)
-    })
-    if (isDup) return
-    seenNotifKeysRef.current.add(key)
-    // Keep most-recent 200 keys to avoid unbounded growth across months of use
-    if (seenNotifKeysRef.current.size > 200) {
-      const trimmed = [...seenNotifKeysRef.current].slice(-200)
-      seenNotifKeysRef.current = new Set(trimmed)
-    }
-    // Seen-keys now persisted inside PERSIST_KEY payload — no separate setItem needed
-    // Bell shake animation
-    bellShake.setValue(0)
-    Animated.sequence([
-      Animated.timing(bellShake, { toValue: 12, duration: 60, useNativeDriver: true }),
-      Animated.timing(bellShake, { toValue: -10, duration: 60, useNativeDriver: true }),
-      Animated.timing(bellShake, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(bellShake, { toValue: -6, duration: 50, useNativeDriver: true }),
-      Animated.timing(bellShake, { toValue: 3, duration: 40, useNativeDriver: true }),
-      Animated.timing(bellShake, { toValue: 0, duration: 40, useNativeDriver: true }),
-    ]).start()
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
-  }
+  // State + actions extracted to useNotifs hook above. The pending/chat-count
+  // poll refs below stay inline since they track *other* state to decide
+  // when to emit notifs, not notification state itself.
 
   // Notify when new real attendees appear in eventAttendeesMap
   const prevAttendeesRef = useRef<Record<number, string[]>>({})
@@ -3358,11 +3314,6 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   const markNotifsReadForPlans = () => {
     // Remove plans-linked notifications when Plans/VibeCheck is opened
     setNotifications(prev => prev.filter(n => !PLANS_TYPES.includes(n.type)))
-  }
-
-  const dismissNotif = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id))
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
   }
 
   // Welcome notification — only once after registration
