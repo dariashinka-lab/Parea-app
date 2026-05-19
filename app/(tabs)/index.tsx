@@ -2294,6 +2294,97 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     return () => { cancelled = true }
   }, [userData?.dbId, persistLoadedState])
 
+  // Backfill chatList from DB on login — without this, a user who was added
+  // to a chat while their realtime channel was down (or who reinstalled the
+  // app) never sees that chat locally even though the DB has them in
+  // chat_members. The realtime listener at ~line 2870 only fires for new
+  // INSERTs, so anything pre-mount is invisible.
+  useEffect(() => {
+    if (!userData?.dbId || !persistLoadedState) return
+    let cancelled = false
+    ;(async () => {
+      const { data: memberships } = await supabase
+        .from('chat_members')
+        .select('chat_id, chats:chat_id(id, type, event_id, last_msg, created_at, format)')
+        .eq('profile_id', userData.dbId)
+      if (cancelled || !memberships) return
+      const dbChatIds = (memberships as any[])
+        .map(m => (m.chats as any)?.id)
+        .filter((id: any) => typeof id === 'number')
+      if (dbChatIds.length === 0) return
+      // Skip chats already in local list (realtime / AsyncStorage already
+      // captured them) and chats whose event was explicitly cancelled.
+      const localIds = new Set(chatListRef.current.map((c: any) => c.id))
+      const missingIds = dbChatIds.filter((id: number) => !localIds.has(id))
+      if (missingIds.length === 0) return
+      // Pull members for the missing chats so card avatars/counts render.
+      const { data: allMembers } = await supabase
+        .from('chat_members')
+        .select('chat_id, profile_id, profiles:profile_id(id, name, photos, color, age)')
+        .in('chat_id', missingIds)
+      const membersByChat: Record<number, any[]> = {}
+      ;(allMembers || []).forEach((m: any) => {
+        if (!membersByChat[m.chat_id]) membersByChat[m.chat_id] = []
+        membersByChat[m.chat_id].push(m.profiles || { id: m.profile_id })
+      })
+      // For duo chats event_id is NULL — resolve event_ref_id via crew_invites.
+      const { data: duoInvites } = await supabase
+        .from('crew_invites')
+        .select('chat_id, event_ref_id, event_title')
+        .in('chat_id', missingIds)
+      const inviteByChat: Record<number, any> = {}
+      ;(duoInvites || []).forEach((i: any) => { inviteByChat[i.chat_id] = i })
+      const newChats = (memberships as any[])
+        .map(m => m.chats as any)
+        .filter((c: any) => c && missingIds.includes(c.id))
+        .filter((c: any) => {
+          // Skip if user cancelled this event explicitly
+          const evId = c.event_id ?? inviteByChat[c.id]?.event_ref_id
+          return !evId || !cancelledEventIdsRef.current.has(evId)
+        })
+        .map((c: any) => {
+          const others = (membersByChat[c.id] || []).filter((m: any) => m.id !== userData.dbId)
+          const invite = inviteByChat[c.id]
+          return {
+            id: c.id,
+            type: c.type,
+            eventRefId: invite?.event_ref_id ?? null,
+            communityEventId: c.type === 'group' && c.event_id && c.event_id < 100000 ? c.event_id : undefined,
+            hostEventId: c.type === 'group' && c.event_id ? c.event_id : undefined,
+            event: invite?.event_title || '',
+            eventEmoji: '🎉',
+            name: c.type === 'duo' && others[0]?.name ? others[0].name : (c.type === 'group' ? 'Crew' : 'Your crew'),
+            partnerProfile: c.type === 'duo' ? others[0] : undefined,
+            memberProfiles: others,
+            members: (membersByChat[c.id] || []).length,
+            avatars: others.map((m: any) => m.photos?.[0]).filter(Boolean),
+            colors: others.map((m: any) => m.color).filter(Boolean),
+            photo: others[0]?.photos?.[0] || '',
+            age: others[0]?.age || '',
+            color: others[0]?.color || '#818CF8',
+            lastMsg: c.last_msg || '🎉 Crew confirmed!',
+            time: c.created_at || new Date().toISOString(),
+            isNew: false,
+            chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+          }
+        })
+      if (newChats.length === 0) return
+      setChatList(prev => {
+        const seen = new Set(prev.map((c: any) => c.id))
+        const fresh = newChats.filter((c: any) => !seen.has(c.id))
+        return fresh.length === 0 ? prev : [...fresh, ...prev]
+      })
+      // Also map duo chats into officialEventChatMap so VibeCheck shows
+      // "Open Chat" rather than re-prompting an invite.
+      newChats.forEach((c: any) => {
+        if (c.eventRefId && c.type === 'duo') {
+          setOfficialEventChatMap(prev => prev[c.eventRefId] ? prev : { ...prev, [c.eventRefId]: c.id })
+        }
+      })
+    })()
+    return () => { cancelled = true }
+  }, [userData?.dbId, persistLoadedState])
+
   // Backfill userEventFormat from event_attendees on login. AsyncStorage on a
   // fresh device install has no userEventFormat, which made VibeCheck fall back
   // to '1+1' (Duo) for official events the user already joined — showing
