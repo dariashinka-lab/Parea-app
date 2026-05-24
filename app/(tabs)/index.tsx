@@ -2275,6 +2275,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         const next = { ...prev }
         let changed = false
         for (const row of data as any[]) {
+          // Don't resurrect an event the user just left/deleted — its
+          // event_attendees DELETE may not have propagated yet, but the
+          // cancelled (left) / deleted (host-cancelled) flag means "keep it
+          // gone". Host events live under deletedCommunityEventIds.
+          if (cancelledEventIdsRef.current.has(row.event_ref_id)) continue
+          if (deletedCommunityEventIds.current.has(row.event_ref_id)) continue
           const dbStatus: 'joined' | 'confirmed' =
             row.status === 'confirmed' || confirmedViaChatEventIds.has(row.event_ref_id)
               ? 'confirmed'
@@ -2289,13 +2295,6 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         }
         return changed ? next : prev
       })
-      // If the user is attending an event but it's in cancelledEventIds (legacy
-      // state), remove it — it's not really cancelled, just a stale flag.
-      const stale = [...cancelledEventIdsRef.current].filter(id => attendedIds.has(id))
-      if (stale.length > 0) {
-        stale.forEach(id => cancelledEventIdsRef.current.delete(id))
-        setCancelledEventIds(prev => prev.filter(id => !attendedIds.has(id)))
-      }
     })()
     return () => { cancelled = true }
   }, [userData?.dbId, persistLoadedState])
