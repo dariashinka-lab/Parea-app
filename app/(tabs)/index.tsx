@@ -1947,6 +1947,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
   const persistLoaded = useRef(false)
   const [persistLoadedState, setPersistLoadedState] = useState(false)
+  // True once the first event_attendees backfill from DB completes. Until then
+  // Plans shows a spinner instead of "No plans yet", so events don't flash in
+  // after an empty render on reload (especially on web where AsyncStorage is
+  // empty and everything comes from the DB fetch).
+  const [plansHydrated, setPlansHydrated] = useState(false)
 
   // Load profiles from DB, fall back to MOCK_SEEKERS if empty
   useEffect(() => {
@@ -2295,6 +2300,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         }
         return changed ? next : prev
       })
+      if (!cancelled) setPlansHydrated(true)
     })()
     return () => { cancelled = true }
   }, [userData?.dbId, persistLoadedState])
@@ -5500,6 +5506,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           <View style={{ flex: 1, display: activeTab === 'messages' ? 'flex' : 'none' }}>
           <MessagesTab
             initialSubTab={messagesInitialSubTab}
+            plansLoading={!plansHydrated}
             chatList={chatList}
             passedRequests={passedRequests}
             onOpenChat={(chat) => {

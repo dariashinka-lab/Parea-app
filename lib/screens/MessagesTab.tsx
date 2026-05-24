@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  Alert, Animated, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  ActivityIndicator, Alert, Animated, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -15,8 +15,9 @@ import { ProfilePreviewSheet } from '../components/ProfilePreviewSheet'
 import { MOCK_EVENTS, VIBE_FORMAT_MAX, VIBE_FORMAT_THRESHOLD, CATEGORY_EMOJI, FLAG_MAP } from '../feed-constants'
 import { isEventPast, prettyEventTime, parseEventDateTime } from '../feed-helpers'
 
-export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser }: {
+export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser, plansLoading = false }: {
   chatList: any[]; onOpenChat: (c: any) => void; onLeaveChat?: (id: number, addSystemMsg?: boolean) => void;
+  plansLoading?: boolean;
   joinedEvents?: Record<number, string>; userEventFormat?: Record<number, string>; userEventTransport?: Record<number, string>; allEvents?: any[]; onEventDetail?: (ev: any) => void;
   crewsByEvent?: Record<number, Array<{ chatId: number; members: any[]; avgMatch: number; format?: string; maxSize?: number }>>;
   officialEventChatMap?: Record<number, number>;
@@ -211,7 +212,13 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               <Text style={{ fontSize: 11, fontWeight: '800', color: PLANS_COLOR, letterSpacing: 1, textTransform: 'uppercase' }}>Attending</Text>
             </View>
           )}
-          {myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
+          {plansLoading && myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
+            // Still hydrating from DB — show a spinner so events don't flash in
+            // after an empty "No plans yet" render on reload.
+            <View style={{ alignItems: 'center', paddingTop: 80 }}>
+              <ActivityIndicator size="small" color="#818CF8" />
+            </View>
+          ) : myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
             <View style={{ alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 }}>
               <LinearGradient colors={['#6366F1', '#818CF8']} style={{ width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                 <CalendarDays size={32} color="#fff" />
