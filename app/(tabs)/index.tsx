@@ -22,7 +22,6 @@ import {
 } from 'react-native'
 
 LogBox.ignoreLogs(['Invalid Refresh Token', 'AuthApiError: Invalid Refresh Token'])
-import MapView, { Marker } from 'react-native-maps'
 import * as ExpoLinking from 'expo-linking'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import ConfettiCannon from 'react-native-confetti-cannon'
