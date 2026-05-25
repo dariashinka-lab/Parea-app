@@ -2252,7 +2252,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
   // Deep-link on push tap: open the chat the notification points to. Handles
   // both a tap while running and a cold start launched from a notification.
+  // Web has no push — skip entirely (the listeners throw there).
   useEffect(() => {
+    if (Platform.OS === 'web') return
     const openFromData = (data: any) => {
       if (!data) return
       if (data.screen === 'chat' && data.chatId != null) {
@@ -2279,6 +2281,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     const recvSub = Notifications.addNotificationReceivedListener(notif => {
       const c = notif.request.content
       const d: any = c.data || {}
+      // Skip if the user is already viewing this chat — the realtime message
+      // path already rendered it; no need for a bell entry too.
+      if (d.type === 'new_message' && openChatRef.current?.id === d.chatId) return
       addNotif({
         type: d.type || 'push',
         emoji: d.emoji || '🔔',

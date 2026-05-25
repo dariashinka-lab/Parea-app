@@ -5,20 +5,24 @@ import Constants from 'expo-constants'
 import { supabase } from './supabase'
 
 // Show notifications even when the app is foregrounded (banner + sound).
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-})
+// Guarded off web — expo-notifications has no web handler and throws.
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  })
+}
 
 // Request permission + fetch the Expo push token, then persist it on the
 // user's profile so the send-side edge function can target this device.
-// Returns the token (or null when unavailable — simulator, denied, Expo Go).
+// Returns the token (or null when unavailable — web, simulator, denied, Expo Go).
 export async function registerPushToken(profileId: string): Promise<string | null> {
-  // Push only works on physical devices.
+  // No push on web, and only on physical devices.
+  if (Platform.OS === 'web') return null
   if (!Device.isDevice) return null
 
   // Android needs a channel before tokens fire any UI.
@@ -34,7 +38,11 @@ export async function registerPushToken(profileId: string): Promise<string | nul
   const { status: existing } = await Notifications.getPermissionsAsync()
   let status = existing
   if (existing !== 'granted') {
-    const req = await Notifications.requestPermissionsAsync()
+    // iOS needs explicit alert/badge/sound options or the prompt grants
+    // nothing usable. Android ignores the ios block.
+    const req = await Notifications.requestPermissionsAsync({
+      ios: { allowAlert: true, allowBadge: true, allowSound: true },
+    })
     status = req.status
   }
   if (status !== 'granted') return null
