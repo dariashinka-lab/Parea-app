@@ -860,7 +860,7 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
             just floor at it) — Xiaomi 14 Pro gesture-nav reports ~30 already,
             so a plain Math.max(insets, 30) gave zero extra breathing room and
             the Continue still glued to the gesture pill. */}
-        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 6) : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
+        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 16 : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
           {step === TOTAL ? (
             <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
               <BlurView intensity={40} tint="light" style={s.bentoFinishBlur}>
