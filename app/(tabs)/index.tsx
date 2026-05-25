@@ -45,6 +45,8 @@ import { VibeCheckTab } from '../../lib/screens/VibeCheckTab'
 import { ChatScreen } from '../../lib/screens/ChatScreen'
 import { useChats } from '../../lib/hooks/useChats'
 import { useNotifs, BELL_TYPES, CHAT_TYPES, PLANS_TYPES, Notif } from '../../lib/hooks/useNotifs'
+import { registerPushToken, sendPush } from '../../lib/push'
+import * as Notifications from 'expo-notifications'
 import { uploadPhotoToStorage, isImageSafe } from '../../lib/photo-helpers'
 import { SOCIAL_ENERGY } from '../../lib/social-energy'
 import { s } from '../../lib/feed-styles'
@@ -2234,6 +2236,41 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     setOpenChat((cur: any) => cur ? refresh(cur) : cur)
   }, [crewsByEvent, userData?.dbId])
 
+  // Register this device's Expo push token once we know who the user is.
+  // No-op in Expo Go / simulators (registerPushToken returns null) — only
+  // real builds on physical devices get a token. Saved to profiles so the
+  // send-side edge function can target the device.
+  useEffect(() => {
+    if (!userData?.dbId) return
+    registerPushToken(userData.dbId).catch(() => {})
+  }, [userData?.dbId])
+
+  // Deep-link on push tap: open the chat the notification points to. Handles
+  // both a tap while running and a cold start launched from a notification.
+  useEffect(() => {
+    const openFromData = (data: any) => {
+      if (!data) return
+      if (data.screen === 'chat' && data.chatId != null) {
+        const chat = chatListRef.current.find((c: any) => c.id === data.chatId)
+        if (chat) {
+          setOpenChat(chat)
+          setChatList(prev => prev.map((c: any) => c.id === chat.id ? { ...c, isNew: false } : c))
+        }
+        setMessagesInitialSubTab('messages')
+        setActiveTab('messages')
+      }
+    }
+    // Cold start: app launched by tapping a notification.
+    Notifications.getLastNotificationResponseAsync().then(resp => {
+      if (resp) openFromData(resp.notification.request.content.data)
+    })
+    // Running: tap while app is open/backgrounded.
+    const sub = Notifications.addNotificationResponseReceivedListener(resp => {
+      openFromData(resp.notification.request.content.data)
+    })
+    return () => sub.remove()
+  }, [])
+
   // Backfill joinedEvents from event_attendees on login + scrub
   // cancelledEventIds for events the user is still attending. Old handleBlock
   // versions polluted both stores on block, and we kept that state in
@@ -4259,6 +4296,20 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     replyToRef.current = null
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60)
 
+    // Push to the other members — those with the app closed/backgrounded get
+    // notified. Collect from memberProfiles (group) + partnerProfile (duo).
+    if (userData?.dbId) {
+      const recipientSet = new Set<string>()
+      ;(openChat.memberProfiles || []).forEach((m: any) => { if (m?.id) recipientSet.add(m.id) })
+      if (openChat.partnerProfile?.id) recipientSet.add(openChat.partnerProfile.id)
+      recipientSet.delete(userData.dbId)
+      const pushRecipients = [...recipientSet]
+      if (pushRecipients.length > 0) {
+        const evTitle = openChat.event || openChat.name || 'Parea'
+        sendPush(pushRecipients, userData.name || 'New message', text, { screen: 'chat', chatId: openChat.id, eventTitle: evTitle })
+      }
+    }
+
     // Для community-чатов — пишем в Supabase + broadcast
     const chatEvId = openChat.communityEventId || openChat.hostEventId
     if (chatEvId && userData?.dbId) {
@@ -5322,6 +5373,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               setJoinedEvents(prev => ({ ...prev, [invite.event_ref_id]: 'confirmed' }))
               setIncomingCrewInvites(prev => prev.filter((i: any) => i.id !== invite.id))
               setOfficialEventChatMap(prev => ({ ...prev, [invite.event_ref_id]: chatData.id }))
+              // Notify the inviter their invite was accepted — their "Waiting"
+              // flips to a chat. Especially important when their app is closed.
+              if (invite.inviter_id) {
+                sendPush([invite.inviter_id], `${userData?.name || 'Someone'} accepted your invite!`,
+                  `For "${invite.event_title || 'your plan'}" — say hi 💬`,
+                  { screen: 'chat', chatId: chatData.id, eventTitle: invite.event_title || '' })
+              }
               showToast('Check your Messages tab for the group chat', 'Crew confirmed! 🎉', '✅')
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
               setMessagesInitialSubTab('messages')
