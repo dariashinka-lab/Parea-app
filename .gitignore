@@ -49,3 +49,6 @@ chats.md
 
 # claude settings
 .claude/
+
+# Firebase config — client key, kept out of git (supplied to EAS via env file)
+google-services.json
