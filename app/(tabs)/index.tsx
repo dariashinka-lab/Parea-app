@@ -2242,7 +2242,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // send-side edge function can target the device.
   useEffect(() => {
     if (!userData?.dbId) return
-    registerPushToken(userData.dbId).catch(() => {})
+    // Respect the user's push preference — don't re-register if they turned
+    // notifications off in Settings.
+    AsyncStorage.getItem('parea_push_enabled').then(v => {
+      if (v === '0') return
+      registerPushToken(userData.dbId).catch(() => {})
+    })
   }, [userData?.dbId])
 
   // Deep-link on push tap: open the chat the notification points to. Handles
@@ -2268,7 +2273,23 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     const sub = Notifications.addNotificationResponseReceivedListener(resp => {
       openFromData(resp.notification.request.content.data)
     })
-    return () => sub.remove()
+    // Foreground receive: funnel the push into the in-app bell so the two
+    // stay consistent (same title/body/emoji). addNotif dedups by key, so a
+    // later poll detecting the same event won't double it.
+    const recvSub = Notifications.addNotificationReceivedListener(notif => {
+      const c = notif.request.content
+      const d: any = c.data || {}
+      addNotif({
+        type: d.type || 'push',
+        emoji: d.emoji || '🔔',
+        color: d.color || '#6366F1',
+        title: c.title || '',
+        body: c.body || '',
+        chatId: d.chatId,
+        eventId: d.eventId,
+      })
+    })
+    return () => { sub.remove(); recvSub.remove() }
   }, [])
 
   // Backfill joinedEvents from event_attendees on login + scrub
@@ -4218,6 +4239,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             transport: transport || null,
           })
           if (error) console.warn('join_request insert error:', error.message)
+          // Notify the host someone wants in.
+          else if (ev.hostId) {
+            sendPush([ev.hostId], `${userData.name || 'Someone'} wants to join`,
+              ev.title || 'your plan', { screen: 'plans', eventId: ev.id, type: 'join_request', emoji: '🙋', color: '#6366F1' })
+          }
         })()
       }
     }
@@ -4306,7 +4332,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       const pushRecipients = [...recipientSet]
       if (pushRecipients.length > 0) {
         const evTitle = openChat.event || openChat.name || 'Parea'
-        sendPush(pushRecipients, userData.name || 'New message', text, { screen: 'chat', chatId: openChat.id, eventTitle: evTitle })
+        sendPush(pushRecipients, userData.name || 'New message', text, { screen: 'chat', chatId: openChat.id, eventTitle: evTitle, type: 'new_message', emoji: '💬', color: '#6366F1' })
       }
     }
 
@@ -5072,6 +5098,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     }, { onConflict: 'event_ref_id,inviter_id,invitee_id' })
                     if (inviteErr) { console.warn('crew_invite upsert error:', inviteErr.message, inviteErr.code); continue }
                     setSentCrewInvites(prev => ({ ...prev, [key]: 'pending' }))
+                    // Notify the invitee they've been asked to crew up — the
+                    // "you got a like" moment that drives them back into the app.
+                    sendPush([partner.id], `${userData?.name || 'Someone'} wants to crew up 💜`,
+                      `For "${ev.title}" — open VibeCheck to reply`, { screen: 'vibecheck', eventId: ev.id, type: 'match', emoji: '💜', color: '#EC4899' })
                     const { data: mutualInvite } = await supabase
                       .from('crew_invites').select('*')
                       .eq('event_ref_id', ev.id).eq('inviter_id', partner.id)
@@ -5378,7 +5408,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               if (invite.inviter_id) {
                 sendPush([invite.inviter_id], `${userData?.name || 'Someone'} accepted your invite!`,
                   `For "${invite.event_title || 'your plan'}" — say hi 💬`,
-                  { screen: 'chat', chatId: chatData.id, eventTitle: invite.event_title || '' })
+                  { screen: 'chat', chatId: chatData.id, eventTitle: invite.event_title || '', type: 'crew_accepted', emoji: '🎉', color: '#43E97B' })
               }
               showToast('Check your Messages tab for the group chat', 'Crew confirmed! 🎉', '✅')
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -5476,6 +5506,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   .update({ status: 'approved' })
                   .eq('id', joiner.requestId)
                   .then(({ error }) => { if (error) console.warn('approve error:', error.message) })
+                // Notify the joiner they're approved — they have a window to confirm.
+                if (joiner.id) {
+                  sendPush([joiner.id], `You're approved for ${ev?.title || 'the plan'}! ✅`,
+                    'Open Parea to confirm your spot', { screen: 'plans', eventId: eventId, type: 'confirmed', emoji: '✅', color: '#43E97B' })
+                }
               }
               setPendingJoinRequests(prev => ({
                 ...prev,

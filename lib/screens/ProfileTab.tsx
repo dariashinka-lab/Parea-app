@@ -20,6 +20,10 @@ import { INTEREST_ICON_MAP } from '../interest-icons'
 import { SOCIAL_ENERGY } from '../social-energy'
 import { uploadPhotoToStorage, isImageSafe } from '../photo-helpers'
 import { supabase } from '../supabase'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { registerPushToken } from '../push'
+
+export const PUSH_PREF_KEY = 'parea_push_enabled'
 
 const { width: W } = Dimensions.get('window')
 
@@ -128,6 +132,22 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  // Reflect the saved push preference on mount.
+  useEffect(() => {
+    AsyncStorage.getItem(PUSH_PREF_KEY).then(v => { if (v === '0') setNotificationsEnabled(false) })
+  }, [])
+  // Toggle push: ON re-registers the device token; OFF clears it from the
+  // profile so the send-push edge function skips this user entirely.
+  const togglePush = async (val: boolean) => {
+    setNotificationsEnabled(val)
+    await AsyncStorage.setItem(PUSH_PREF_KEY, val ? '1' : '0')
+    if (!userData?.dbId) return
+    if (val) {
+      await registerPushToken(userData.dbId)
+    } else {
+      await supabase.from('profiles').update({ expo_push_token: null }).eq('id', userData.dbId)
+    }
+  }
   const [blockedUsers, setBlockedUsers] = useState<{ id: string; name: string; photo?: string }[]>([])
   const [faqOpen, setFaqOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<string | null>(null)
@@ -655,7 +675,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                         <Feather name="bell" size={17} color="#F59E0B" />
                       </View>
                       <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#1E1B4B' }}>Push Notifications</Text>
-                      <Switch value={notificationsEnabled} onValueChange={setNotificationsEnabled} trackColor={{ false: '#E2E8F0', true: '#8B5CF6' }} thumbColor="#fff" />
+                      <Switch value={notificationsEnabled} onValueChange={togglePush} trackColor={{ false: '#E2E8F0', true: '#8B5CF6' }} thumbColor="#fff" />
                     </View>
                   </View>
                 </View>
