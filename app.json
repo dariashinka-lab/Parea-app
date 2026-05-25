@@ -23,7 +23,8 @@
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "package": "com.dariashinka.PareaApp"
+      "package": "com.dariashinka.PareaApp",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "single",
