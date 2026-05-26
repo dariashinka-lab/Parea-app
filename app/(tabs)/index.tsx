@@ -4714,7 +4714,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             _dbId: m.id,
           }
         })
-        setChatMessages(prev => ({ ...prev, [chatId]: msgs }))
+        setChatMessages(prev => {
+          const existing = prev[chatId] || []
+          // Preserve just-sent optimistic msgs (from='me', no _dbId) whose text
+          // isn't in the DB result yet — otherwise a poll firing between send and
+          // insert-commit wipes the sender's own message until the next poll.
+          const localOptimistic = existing.filter((mm: any) =>
+            mm.from === 'me' && !mm._dbId &&
+            !msgs.some((dbM: any) => dbM.from === 'me' && dbM.text === mm.text)
+          )
+          return { ...prev, [chatId]: [...msgs, ...localOptimistic] }
+        })
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 400)
       })
     loadCommunityHistory()
@@ -4767,8 +4777,22 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           senderPhoto: sender?.photo || '',
           senderColor: sender?.color || '#818CF8',
           replyTo: m.reply_to_text ? { text: m.reply_to_text, senderName: m.reply_to_sender || '' } : undefined,
+          _senderId: m.sender_id,
         }
-        setChatMessages(prev => ({ ...prev, [chatId]: [...(prev[chatId] || []), newMsg] }))
+        // Dedup like the duo handler — a poll may have already loaded this message
+        // from the DB; without this the broadcast appends a duplicate until the next
+        // poll overwrites it (the "message appears twice then vanishes" flicker).
+        setChatMessages(prev => {
+          const existing = prev[chatId] || []
+          const recent = existing.slice(-8)
+          const isDup = recent.some((mm: any) =>
+            mm.text === newMsg.text &&
+            mm.from === newMsg.from &&
+            (isSystemMsg ? true : (mm.senderName || '') === (newMsg.senderName || ''))
+          )
+          if (isDup) return prev
+          return { ...prev, [chatId]: [...existing, newMsg] }
+        })
         const lastMsgText = isSystemMsg ? m.text : `${sender?.name || 'Someone'}: ${m.text}`
         setChatList(prev => prev.map(c => c.id === chatId ? { ...c, lastMsg: lastMsgText, time: new Date().toISOString(), isNew: !isSystemMsg } : c))
         if (!isSystemMsg) {
