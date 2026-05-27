@@ -487,7 +487,15 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               </Text>
             </View>
           )}
-          {chatList.map(chat => (
+          {[...chatList].sort((a, b) => {
+            // Most-recent activity first. `time` is usually an ISO timestamp
+            // (created_at / last message); fall back to chat id (higher = newer)
+            // when it's a bare "HH:MM" string that can't be parsed.
+            const ta = Date.parse(a.time); const tb = Date.parse(b.time)
+            const ka = isNaN(ta) ? (a.id || 0) : ta
+            const kb = isNaN(tb) ? (b.id || 0) : tb
+            return kb - ka
+          }).map(chat => (
             <TouchableOpacity
               key={chat.id}
               onPress={() => onOpenChat(chat)}

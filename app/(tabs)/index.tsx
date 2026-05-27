@@ -3236,15 +3236,47 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           if (newProfileId === userData.dbId) return // own join, already handled
           const { data: profile } = await supabase.from('profiles').select('id, name, photos, color').eq('id', newProfileId).single()
           if (!profile) return
-          // Member counts + profile lists are now synced from crewsByEvent in a
-          // separate useEffect — that's authoritative. We only post the join
-          // toast/system message here so we don't double-increment counts.
-          setChatMessages(prev => {
-            const msgs = prev[chatId] || []
-            const sysMsg = { from: 'system', text: `${profile.name || 'Someone'} joined`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-            return { ...prev, [chatId]: [...msgs, sysMsg] }
+          // The "X joined the group" line is now a persistent DB message posted by
+          // join_party_chat (survives reload, same as "X left"), so we no longer
+          // add a local ephemeral one here — that would double it. We only update
+          // the open chat's member count/avatars below.
+          // Reflect the new member in the OPEN chat header + chat list right away —
+          // otherwise the member count + avatars stay stale until you leave and
+          // re-enter the chat. Dedup-guarded and derived from list length (not an
+          // increment) so it's idempotent if crewsByEvent also syncs.
+          const joined = { id: profile.id, name: profile.name, photo: profile.photos?.[0] || '', color: profile.color || '#818CF8' }
+          setOpenChat((cur: any) => {
+            if (!cur || cur.id !== chatId) return cur
+            if ((cur.memberProfiles || []).some((p: any) => p.id === joined.id)) return cur
+            const newProfiles = [...(cur.memberProfiles || []), joined]
+            return { ...cur, memberProfiles: newProfiles, members: newProfiles.length + 1 }
           })
+          setChatList((prev: any) => prev.map((c: any) => {
+            if (c.id !== chatId) return c
+            if ((c.memberProfiles || []).some((p: any) => p.id === joined.id)) return c
+            const newProfiles = [...(c.memberProfiles || []), joined]
+            return { ...c, memberProfiles: newProfiles, members: newProfiles.length + 1, avatars: newProfiles.map((p: any) => p.photo).filter(Boolean), colors: newProfiles.map((p: any) => p.color) }
+          }))
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100)
+        })
+        // A member leaving is a DELETE — without this the remaining members' open
+        // chat keeps showing the old count (e.g. "3 members") until they re-enter.
+        // (The "X left the group" message itself arrives via the message pipeline.)
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_members', filter: `chat_id=eq.${chatId}` }, (payload: any) => {
+          const goneId = payload.old?.profile_id
+          if (!goneId || goneId === userData.dbId) return
+          setOpenChat((cur: any) => {
+            if (!cur || cur.id !== chatId) return cur
+            const newProfiles = (cur.memberProfiles || []).filter((p: any) => p.id !== goneId)
+            if (newProfiles.length === (cur.memberProfiles || []).length) return cur
+            return { ...cur, memberProfiles: newProfiles, members: newProfiles.length + 1 }
+          })
+          setChatList((prev: any) => prev.map((c: any) => {
+            if (c.id !== chatId) return c
+            const newProfiles = (c.memberProfiles || []).filter((p: any) => p.id !== goneId)
+            if (newProfiles.length === (c.memberProfiles || []).length) return c
+            return { ...c, memberProfiles: newProfiles, members: newProfiles.length + 1, avatars: newProfiles.map((p: any) => p.photo).filter(Boolean), colors: newProfiles.map((p: any) => p.color) }
+          }))
         })
         .subscribe()
       partyChatMemberChannels.current[chatId] = ch
@@ -3905,7 +3937,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           })
           // Restore/sync from DB
           validRequests.forEach((req: any) => {
-            if (cancelledEventIdsRef.current.has(req.event_id)) return
+            if (cancelledEventIdsRef.current.has(req.event_id)) {
+              // Previously left, but a fresh pending/approved request means the
+              // user re-joined this event — un-cancel so the re-join flows through
+              // (otherwise the approval is ignored and they're stuck on "Waiting").
+              if (req.status === 'pending' || req.status === 'approved') {
+                cancelledEventIdsRef.current.delete(req.event_id)
+                setCancelledEventIds(prev => prev.filter(id => id !== req.event_id))
+              } else {
+                return
+              }
+            }
             if (req.status === 'pending' && !updated[req.event_id]) {
               updated[req.event_id] = 'pending'
               changed = true
@@ -4301,14 +4343,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             return
           }
           if (existing) return // already pending/approved/confirmed — nothing to do
-          const { error } = await supabase.from('join_requests').insert({
+          // Upsert (not insert) — re-requesting an event you previously left can
+          // collide with a leftover row on the (event_id, requester_id) unique key
+          // before the leave-cleanup delete lands. Upsert just resets it to pending.
+          const { error } = await supabase.from('join_requests').upsert({
             event_id: ev.id,
             requester_id: userData.dbId,
             host_id: ev.hostId,
             status: 'pending',
             transport: transport || null,
-          })
-          if (error) console.warn('join_request insert error:', error.message)
+          }, { onConflict: 'event_id,requester_id' })
+          if (error) console.warn('join_request upsert error:', error.message)
           // Notify the host someone wants in.
           else if (ev.hostId) {
             sendPush([ev.hostId], `${userData.name || 'Someone'} wants to join`,
@@ -4519,7 +4564,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             return
           }
           const msgs = data.map((m: any) => {
-            const isSystem = (m.text || '').includes('left the group')
+            const isSystem = /(left|joined) the group/.test(m.text || '')
             if (isSystem) {
               return { from: 'system', text: m.text, time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _dbId: m.id }
             }
@@ -4725,7 +4770,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         if (!data) return
         const profilesInChat: any[] = openChat.memberProfiles || []
         const msgs = data.map((m: any) => {
-          const isSystem = (m.text || '').includes('left the group')
+          const isSystem = /(left|joined) the group/.test(m.text || '')
           if (isSystem) {
             return { from: 'system', text: m.text, time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _dbId: m.id }
           }
@@ -4743,6 +4788,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             senderColor: isMe ? '' : (sender?.color || '#818CF8'),
             replyTo: m.reply_to_text ? { text: m.reply_to_text, senderName: m.reply_to_sender || '' } : undefined,
             _dbId: m.id,
+            _senderId: m.sender_id,
           }
         })
         setChatMessages(prev => {
@@ -4796,7 +4842,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         const msgDate = new Date(m.created_at).toISOString().slice(0, 10)
         // Системные сообщения (e.g. "X left the group") — показываем по центру
-        const isSystemMsg = m.text?.includes('left the group')
+        const isSystemMsg = /(left|joined) the group/.test(m.text || '')
         const newMsg = isSystemMsg ? {
           from: 'system', text: m.text, time,
         } : {
@@ -4888,7 +4934,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           seenInboxMsgIdsRef.current = new Set(arr.slice(-200))
         }
         if (m.sender_id === userData.dbId) return // своё сообщение
-        if (m.text?.includes('left the group')) return // системные скипаем
+        if (/(left|joined) the group/.test(m.text || '')) return // системные скипаем
         // Найти чат по community_event_id или по chat_id (дуо + group)
         const chat = chatListRef.current.find(c =>
           c.communityEventId === m.community_event_id || c.hostEventId === m.community_event_id
@@ -5358,18 +5404,29 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   .update({ status: 'confirmed' })
                   .eq('event_id', ev.id)
                   .eq('requester_id', userData.dbId)
-                // Find or create real chat row in DB so it persists across devices
-                const { data: existingChat } = await supabase
-                  .from('chats').select('id')
-                  .eq('event_id', ev.id).eq('type', chatType).maybeSingle()
-                if (existingChat) {
-                  dbChatId = existingChat.id
+                // Find or create the event's chat. For group chats use the
+                // get_or_create_party_chat RPC (SECURITY DEFINER) so a re-joiner who
+                // isn't a member yet still finds the EXISTING chat — a direct client
+                // SELECT is hidden by RLS for non-members and was creating duplicate
+                // chats (event split across two crews). Duo keeps the direct path.
+                if (isGroup) {
+                  const { data: rpcChatId, error: rpcErr } = await supabase
+                    .rpc('get_or_create_party_chat', { p_event_id: ev.id, p_title: ev.title }).single()
+                  if (rpcErr || !rpcChatId) console.warn('get_or_create_party_chat error:', rpcErr?.message)
+                  else dbChatId = rpcChatId as number
                 } else {
-                  const { data: newDbChat } = await supabase
-                    .from('chats')
-                    .insert({ event_id: ev.id, type: chatType, last_msg: isGroup ? '🎉 Group chat created!' : '👋 You matched!' })
-                    .select('id').single()
-                  if (newDbChat) dbChatId = newDbChat.id
+                  const { data: existingChat } = await supabase
+                    .from('chats').select('id')
+                    .eq('event_id', ev.id).eq('type', chatType).maybeSingle()
+                  if (existingChat) {
+                    dbChatId = existingChat.id
+                  } else {
+                    const { data: newDbChat } = await supabase
+                      .from('chats')
+                      .insert({ event_id: ev.id, type: chatType, last_msg: '👋 You matched!' })
+                      .select('id').single()
+                    if (newDbChat) dbChatId = newDbChat.id
+                  }
                 }
                 // Add joiner + host to chat_members so both phones can restore the chat.
                 // Done via the join_party_chat SECURITY DEFINER RPC: it resolves the

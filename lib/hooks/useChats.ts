@@ -103,30 +103,12 @@ export function useChats({ userDbId, userName, onChatRemoved, lastReadAtMap }: {
       await supabase.from('chat_members').delete().eq('chat_id', chatId)
       await supabase.from('chats').delete().eq('id', chatId)
     }
-    // Group chats where blocked user is also a member — auto-leave (Option B):
-    // block = "I don't want to share an event with this person", so the blocker
-    // exits the crew. Post "X left the group" for the rest, or delete chat if last.
-    const sharedGroupChats = chatListRef.current.filter((c: any) =>
-      c.type === 'group' &&
-      typeof c.id === 'number' && c.id < 1e12 &&
-      (c.memberProfiles || []).some((m: any) => m.id === profile.id)
-    )
-    for (const chat of sharedGroupChats) {
-      await supabase.from('chat_members').delete().eq('chat_id', chat.id).eq('profile_id', userDbId)
-      const { data: remaining } = await supabase.from('chat_members').select('profile_id').eq('chat_id', chat.id)
-      if (!remaining || remaining.length === 0) {
-        await supabase.from('chats').delete().eq('id', chat.id)
-      } else {
-        await supabase.from('messages').insert({
-          chat_id: chat.id, sender_id: userDbId,
-          text: `${userName || 'Someone'} left the group`,
-        })
-      }
-    }
-    const sharedIds = new Set(sharedGroupChats.map((c: any) => c.id))
-    setChatList(prev => prev.filter((c: any) =>
-      !duoChatIdsToDelete.has(c.id) && !sharedIds.has(c.id)
-    ))
+    // Group chats: Option A (placeholder-hide). The blocker STAYS in the crew —
+    // blocking one person shouldn't eject you from a 15-20 person event chat.
+    // Their messages render as "Hidden message" for the blocker (ChatScreen reads
+    // blockedIds), and the bidirectional VibeCheck filter keeps them from
+    // re-matching. So we don't touch group membership here at all.
+    setChatList(prev => prev.filter((c: any) => !duoChatIdsToDelete.has(c.id)))
     // Cancel any pending/accepted crew_invites between us. Without this, after
     // unblock there can be leftover 'pending' invites that resurrect waiting
     // states or "ghost" accepts. Two queries — Supabase or/and with UUIDs misparses.
@@ -140,7 +122,8 @@ export function useChats({ userDbId, userName, onChatRemoved, lastReadAtMap }: {
         .eq('inviter_id', profile.id).eq('invitee_id', userDbId)
         .in('status', ['pending', 'accepted']),
     ])
-    return { duoChats, groupChats: sharedGroupChats }
+    // groupChats now always empty — we no longer leave groups on block (Option A).
+    return { duoChats, groupChats: [] as any[] }
   }
 
   const handleReport = async (profile: any, reason: string, details?: string) => {
@@ -216,7 +199,7 @@ export function useChats({ userDbId, userName, onChatRemoved, lastReadAtMap }: {
         const last = latestByChat[c.id]
         if (!last) return c
         const isMe = last.sender_id === userDbId
-        const isSystem = (last.text || '').includes('left the group')
+        const isSystem = /(left|joined) the group/.test(last.text || '')
         // Telegram-style unread: chat is unread only if latest message is from
         // someone else AND was sent after we last read this chat.
         const lastReadMs = (lastReadAtMap || {})[c.id] || 0

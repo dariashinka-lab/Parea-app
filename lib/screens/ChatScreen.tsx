@@ -261,12 +261,15 @@ export function ChatScreen(props: any) {
                   <Text style={{ fontSize: 12, fontFamily: 'Outfit-Regular', color: '#6D28D9', lineHeight: 17 }}>Use the chat to coordinate meeting and transport.</Text>
                 </View>
               )}
-              {(chatMessages[openChat.id] || []).filter((msg: any) =>
-                msg.from === 'me' || msg.from === 'system' || !blockedIds.has(msg.senderId)
-              ).map((msg: any, i: number) => {
-                const allMsgs = (chatMessages[openChat.id] || []).filter((m: any) => m.from === 'me' || m.from === 'system' || !blockedIds.has(m.senderId))
+              {(chatMessages[openChat.id] || []).map((msg: any, i: number) => {
+                const allMsgs = (chatMessages[openChat.id] || [])
                 const prevMsg = allMsgs[i - 1]
                 const showDateSep = msg.date && msg.date !== prevMsg?.date
+                // Blocked-sender messages stay in place (so replies keep context)
+                // but their content is replaced with a neutral placeholder.
+                const _senderId = msg._senderId ?? msg.senderId
+                const isHidden = msg.from === 'them' && _senderId != null && blockedIds.has(_senderId)
+                const bodyText = isHidden ? 'Hidden message' : msg.text
                 return (
                 <React.Fragment key={i}>
                   {showDateSep && (
@@ -287,16 +290,16 @@ export function ChatScreen(props: any) {
                     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
                       <Image source={msg.senderPhoto ? { uri: msg.senderPhoto } : undefined} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: msg.senderColor || '#818CF8' }} />
                       <View style={{ maxWidth: W * 0.72 }}>
-                        {msg.senderName && <Text style={{ fontSize: 11, color: msg.senderColor || '#818CF8', fontWeight: '600', marginBottom: 3, marginLeft: 4 }}>{msg.senderName}</Text>}
-                        <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: msg.senderName || 'them' }; replyToRef.current = r; setReplyTo(r) }}>
+                        {msg.senderName && <Text style={{ fontSize: 11, color: msg.senderColor || '#818CF8', fontWeight: '600', marginBottom: 3, marginLeft: 4 }}>{isHidden ? 'Blocked user' : msg.senderName}</Text>}
+                        <TouchableOpacity activeOpacity={0.8} disabled={isHidden} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: msg.senderName || 'them' }; replyToRef.current = r; setReplyTo(r) }}>
                           <View style={s.msgBubbleThem}>
-                            {msg.replyTo && (
+                            {msg.replyTo && !isHidden && (
                               <View style={{ backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 8, padding: 7, marginBottom: 5, borderLeftWidth: 3, borderLeftColor: '#6366F1' }}>
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#6366F1' }}>{msg.replyTo.senderName}</Text>
                                 <Text style={{ fontSize: 12, color: '#64748B' }} numberOfLines={2}>{msg.replyTo.text}</Text>
                               </View>
                             )}
-                            <Text style={{ fontSize: 14, color: '#1E1B4B', lineHeight: 20 }}>{msg.text}</Text>
+                            <Text style={{ fontSize: 14, color: isHidden ? '#94A3B8' : '#1E1B4B', fontStyle: isHidden ? 'italic' : 'normal', lineHeight: 20 }}>{bodyText}</Text>
                             <Text style={{ fontSize: 10, color: '#94A3B8', textAlign: 'right', marginTop: 2 }}>{msg.time}</Text>
                           </View>
                         </TouchableOpacity>
@@ -305,15 +308,15 @@ export function ChatScreen(props: any) {
                   )}
                   {msg.from === 'them' && openChat.type === 'duo' && (
                     <View style={{ maxWidth: W * 0.72 }}>
-                      <TouchableOpacity activeOpacity={0.8} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: msg.senderName || openChat.name || 'them' }; replyToRef.current = r; setReplyTo(r) }}>
+                      <TouchableOpacity activeOpacity={0.8} disabled={isHidden} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); const r = { text: msg.text, senderName: msg.senderName || openChat.name || 'them' }; replyToRef.current = r; setReplyTo(r) }}>
                         <View style={s.msgBubbleThem}>
-                          {msg.replyTo && (
+                          {msg.replyTo && !isHidden && (
                             <View style={{ backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 8, padding: 7, marginBottom: 5, borderLeftWidth: 3, borderLeftColor: '#6366F1' }}>
                               <Text style={{ fontSize: 11, fontWeight: '700', color: '#6366F1' }}>{msg.replyTo.senderName}</Text>
                               <Text style={{ fontSize: 12, color: '#64748B' }} numberOfLines={2}>{msg.replyTo.text}</Text>
                             </View>
                           )}
-                          <Text style={{ fontSize: 14, color: '#1E1B4B', lineHeight: 20 }}>{msg.text}</Text>
+                          <Text style={{ fontSize: 14, color: isHidden ? '#94A3B8' : '#1E1B4B', fontStyle: isHidden ? 'italic' : 'normal', lineHeight: 20 }}>{bodyText}</Text>
                           <Text style={{ fontSize: 10, color: '#94A3B8', textAlign: 'right', marginTop: 2 }}>{msg.time}</Text>
                         </View>
                       </TouchableOpacity>
