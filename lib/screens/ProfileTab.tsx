@@ -3,7 +3,7 @@ import {
   ActivityIndicator, Alert, Dimensions, Image, Linking, Modal, ScrollView, StyleSheet, Switch,
   Text, TouchableOpacity, View,
 } from 'react-native'
-import { Feather, Ionicons } from '@expo/vector-icons'
+import { Feather } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import MaskedView from '@react-native-masked-view/masked-view'
 import * as Haptics from 'expo-haptics'
@@ -203,7 +203,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
               <Feather name="x" size={16} color="#64748B" />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 }}>Music taste</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
               {MUSIC_GENRES.map(g => {
@@ -306,7 +306,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
               <Feather name="x" size={16} color="#64748B" />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
               {LANGUAGES_LIST.map(l => {
                 const on = draftLangs.includes(l.code)
@@ -337,7 +337,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
               <Feather name="x" size={16} color="#64748B" />
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
             {INTERESTS_BY_CATEGORY.map(cat => {
               const palette = INTEREST_CATEGORY_PALETTE[cat.id as keyof typeof INTEREST_CATEGORY_PALETTE]
               return (
@@ -377,6 +377,25 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
           </View>
           <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>City</Text>
+              <TouchableOpacity onPress={() => { setEditProfileOpen(false); setTimeout(() => setCityOpen?.(true), 300) }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#8B5CF6' }}>Edit →</Text>
+              </TouchableOpacity>
+            </View>
+            {city ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EEF2FF', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7 }}>
+                  <Feather name="map-pin" size={13} color="#6366F1" />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#4338CA' }}>{city}</Text>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => { setEditProfileOpen(false); setTimeout(() => setCityOpen?.(true), 300) }}
+                style={{ alignItems: 'center', paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed', marginBottom: 20 }}>
+                <Text style={{ fontSize: 13, color: '#94A3B8' }}>Add your city</Text>
+              </TouchableOpacity>
+            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.8, textTransform: 'uppercase' }}>Interests</Text>
               <TouchableOpacity onPress={() => { setDraftInterests(userData?.interests || []); setEditProfileOpen(false); setTimeout(() => setInterestsEditOpen(true), 300) }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: '#8B5CF6' }}>Edit →</Text>
@@ -398,7 +417,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
             ) : (
               <TouchableOpacity onPress={() => { setDraftInterests([]); setEditProfileOpen(false); setTimeout(() => setInterestsEditOpen(true), 300) }}
                 style={{ alignItems: 'center', paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed', marginBottom: 20 }}>
-                <Text style={{ fontSize: 13, color: '#94A3B8' }}>✨ Add interests</Text>
+                <Text style={{ fontSize: 13, color: '#94A3B8' }}>Add interests</Text>
               </TouchableOpacity>
             )}
 
@@ -413,9 +432,8 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                 {(userData.langs as string[]).map((code: string) => {
                   const l = LANGUAGES_LIST.find(x => x.code === code)
                   return l ? (
-                    <View key={code} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F8FAFC', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7 }}>
-                      <Text style={{ fontSize: 18 }}>{l.flag}</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#475569' }}>{l.label}</Text>
+                    <View key={code} style={{ backgroundColor: '#F3EEFF', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 7 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#7C3AED' }}>{l.label}</Text>
                     </View>
                   ) : null
                 })}
@@ -423,7 +441,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
             ) : (
               <TouchableOpacity onPress={() => { setDraftLangs([]); setEditProfileOpen(false); setTimeout(() => setLangEditOpen(true), 300) }}
                 style={{ alignItems: 'center', paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed', marginBottom: 20 }}>
-                <Text style={{ fontSize: 13, color: '#94A3B8' }}>🌍 Add languages</Text>
+                <Text style={{ fontSize: 13, color: '#94A3B8' }}>Add languages</Text>
               </TouchableOpacity>
             )}
 
@@ -601,11 +619,16 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                     </TouchableOpacity>
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {interests.slice(0, 6).map((it: string) => (
-                      <View key={it} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#E9E5FF' }}>
-                        <Text style={{ fontSize: 12, fontFamily: 'Outfit-Medium', color: '#4338CA' }}>{it}</Text>
-                      </View>
-                    ))}
+                    {interests.slice(0, 6).map((it: string) => {
+                      const Icon = INTEREST_ICON_MAP[it] || Sparkle
+                      const label = it.indexOf(' ') !== -1 ? it.slice(it.indexOf(' ') + 1) : it
+                      return (
+                        <View key={it} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#E9E5FF' }}>
+                          <Icon size={12} color="#6366F1" weight="duotone" />
+                          <Text style={{ fontSize: 12, fontFamily: 'Outfit-Medium', color: '#4338CA' }}>{label}</Text>
+                        </View>
+                      )
+                    })}
                     {interests.length > 6 && (
                       <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, backgroundColor: '#EEF2FF' }}>
                         <Text style={{ fontSize: 12, fontFamily: 'Outfit-SemiBold', color: '#6366F1' }}>+{interests.length - 6}</Text>
@@ -614,18 +637,6 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                   </View>
                 </View>
               )}
-
-              <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 16, shadowColor: '#6366F1', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
-                <Text style={{ fontSize: 11, fontFamily: 'Outfit-SemiBold', color: '#94A3B8', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Safety</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <Ionicons name="checkmark-circle" size={15} color="#10B981" />
-                  <Text style={{ fontSize: 13, fontFamily: 'Outfit-Medium', color: '#475569' }}>Profile visible to crew</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Ionicons name="checkmark-circle" size={15} color="#10B981" />
-                  <Text style={{ fontSize: 13, fontFamily: 'Outfit-Medium', color: '#475569' }}>18+ confirmed</Text>
-                </View>
-              </View>
             </View>
           )
         })()}
@@ -640,32 +651,6 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                 <Text style={{ fontFamily: 'ClashDisplay-Bold', fontSize: 22, color: '#1E1B4B', marginLeft: 14 }}>Settings</Text>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40, gap: 24 }}>
-
-                <View>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>Profile</Text>
-                  <View style={{ backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
-                    {[
-                      { icon: 'edit-2', label: 'Edit Profile', iconColor: '#8B5CF6', bg: '#F3EEFF' },
-                      { icon: 'map-pin', label: 'City', iconColor: '#6366F1', bg: '#EEF2FF', value: city },
-                    ].map((item, idx) => (
-                      <React.Fragment key={item.label}>
-                        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
-                          onPress={() => {
-                            if (item.label === 'Edit Profile') { setSettingsOpen(false); setTimeout(() => setEditProfileOpen(true), 300) }
-                            if (item.label === 'City') { setSettingsOpen(false); setTimeout(() => setCityOpen?.(true), 300) }
-                          }}>
-                          <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: item.bg, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                            <Feather name={item.icon as any} size={17} color={item.iconColor} />
-                          </View>
-                          <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#1E1B4B' }}>{item.label}</Text>
-                          {'value' in item && <Text style={{ fontSize: 13, color: '#94A3B8', marginRight: 6 }}>{item.value}</Text>}
-                          <Feather name="chevron-right" size={15} color="#CBD5E1" />
-                        </TouchableOpacity>
-                        {idx === 0 && <View style={{ height: 1, backgroundColor: '#F8FAFC', marginLeft: 66 }} />}
-                      </React.Fragment>
-                    ))}
-                  </View>
-                </View>
 
                 <View>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>Preferences</Text>
