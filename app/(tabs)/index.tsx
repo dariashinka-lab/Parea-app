@@ -5104,11 +5104,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             crewsByEvent={crewsByEvent}
             onJoinSpecificCrew={async (ev: any, chatId: number) => {
               if (!userData?.dbId) return
-              // User picked an existing crew from the list — just add them to that chat.
-              // Multi-chat-per-event model: the chat already exists, members are already in it.
-              const { error } = await supabase.from('chat_members')
-                .upsert({ chat_id: chatId, profile_id: userData.dbId }, { onConflict: 'chat_id,profile_id' })
-              if (error) { console.warn('chat_members insert error:', error.message); showToast('Try again', 'Could not join crew', '⚠️'); return }
+              // User picked an existing crew from the list — add them to that chat.
+              // Must use the SECURITY DEFINER RPC: a direct chat_members upsert is
+              // blocked by RLS for a non-member (you can't see / insert into a chat
+              // you're not in yet), which surfaced as "Could not join crew" when a
+              // 3rd user tried to join a crew they'd discovered via get_event_crews.
+              const { error } = await supabase.rpc('join_party_chat', { p_chat_id: chatId, p_host_id: null })
+              if (error) { console.warn('join_party_chat error (join specific crew):', error.message); showToast('Try again', 'Could not join crew', '⚠️'); return }
               // Local user choice (userEventFormat) is the source of truth for sizes.
               // If user picked party (20), make sure the DB row reflects that — otherwise
               // AI scoring filter (size compatibility) excludes others on size mismatch.
