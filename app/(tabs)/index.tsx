@@ -2683,45 +2683,35 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         // nested-select form was returning null `profiles` join in some cases
         // (the "EXISTING CREWS (1) · 0/5 · no match yet" bug) which made crews
         // look empty to other users. Doing it as two queries is rock-solid.
-        const { data: chatsForEvent } = await supabase
-          .from('chats')
-          .select('id, format')
-          .eq('event_id', evId)
-          .eq('type', 'group')
-        const chatIds = (chatsForEvent || []).map((c: any) => c.id)
-        const formatByChat: Record<number, string> = {}
-        ;(chatsForEvent || []).forEach((c: any) => { if (c.format) formatByChat[c.id] = c.format })
-        if (chatIds.length === 0) { result[evId] = []; return }
-        const { data: cms } = await supabase
-          .from('chat_members')
-          .select('chat_id, profile_id, profiles:profile_id(id, name, photos, color, age, bio, langs, interests, drinks_pref, smoking_pref, has_pets)')
-          .in('chat_id', chatIds)
+        // Discovery must surface crews the viewer isn't a member of yet — but RLS
+        // on chats/chat_members hides those from non-members (confirmed: a 3rd
+        // user saw two people who'd already crewed up as separate individuals
+        // instead of one crew). A SECURITY DEFINER RPC returns the event's group
+        // crews + member profiles for everyone. Degrades safely: if the RPC isn't
+        // present yet, crewsRaw is null → no crews shown (same as before).
+        const { data: crewsRaw } = await supabase.rpc('get_event_crews', { p_event_id: evId })
+        const crewRows: any[] = Array.isArray(crewsRaw) ? crewsRaw : []
+        if (crewRows.length === 0) { result[evId] = []; return }
         const attendees = eventAttendeesMapRef.current[evId] || []
         const scoreById: Record<string, number> = {}
         attendees.forEach((a: any) => { if (a?.id && a.score != null) scoreById[a.id] = a.score })
-        const byChat: Record<number, any[]> = {}
-        ;(cms || []).forEach((m: any) => {
-          const p = m.profiles || {}
-          if (!byChat[m.chat_id]) byChat[m.chat_id] = []
-          byChat[m.chat_id].push({
-            id: p.id || m.profile_id,
+        const sizeMap: Record<string, number> = { '1+1': 2, squad: 5, party: 20 }
+        result[evId] = crewRows.map((c: any) => {
+          const members = (c.members || []).map((p: any) => ({
+            id: p.id,
             name: p.name || 'Member',
             photo: p.photos?.[0] || null, photos: p.photos || [],
             color: p.color || '#818CF8',
             age: p.age || '',
             bio: p.bio || '', langs: p.langs || [], interests: p.interests || [],
             drinksPref: p.drinks_pref, smokingPref: p.smoking_pref, hasPets: !!p.has_pets,
-          })
-        })
-        const sizeMap: Record<string, number> = { '1+1': 2, squad: 5, party: 20 }
-        result[evId] = chatIds.map((cid: number) => {
-          const members = byChat[cid] || []
+          }))
           const otherIds = members.map((m: any) => m.id).filter((id: string) => id !== userData.dbId)
-          const scores = otherIds.map(id => scoreById[id]).filter(s => typeof s === 'number')
-          const avgMatch = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
-          const format = formatByChat[cid]
+          const scores = otherIds.map((id: string) => scoreById[id]).filter((s: any) => typeof s === 'number')
+          const avgMatch = scores.length > 0 ? Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length) : 0
+          const format = c.format
           const maxSize = format ? sizeMap[format] : undefined
-          return { chatId: cid, members, avgMatch, format, maxSize }
+          return { chatId: c.chat_id, members, avgMatch, format, maxSize }
         })
       }))
       if (!cancelled) setCrewsByEvent(result)
