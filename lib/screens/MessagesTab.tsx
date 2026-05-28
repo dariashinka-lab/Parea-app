@@ -42,6 +42,32 @@ function AnimatedTransportChip({ transportKey, label }: { transportKey: string; 
   )
 }
 
+// Event thumbnail in the chat list. Remote Storage URLs take a moment to fetch
+// (and a freshly-uploaded photo even longer), which left a blank tile. Show a
+// gradient + emoji placeholder with a spinner underneath, and fade the photo in
+// once it loads so there's never an empty box.
+function EventThumb({ uri, emoji, colors }: { uri: string; emoji?: string; colors?: string[] }) {
+  const [loaded, setLoaded] = useState(false)
+  const c0 = (colors?.[0] && typeof colors[0] === 'string') ? colors[0] : '#818CF8'
+  const c1 = (colors?.[1] && typeof colors[1] === 'string') ? colors[1] : '#6366F1'
+  return (
+    <View style={{ width: 54, height: 54, borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 }}>
+      {!loaded && (
+        <LinearGradient colors={[c0, c1]}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="small" color="rgba(255,255,255,0.9)" />
+        </LinearGradient>
+      )}
+      <Image
+        source={{ uri }}
+        style={{ width: '100%', height: '100%', opacity: loaded ? 1 : 0 }}
+        resizeMode="cover"
+        onLoad={() => setLoaded(true)}
+      />
+    </View>
+  )
+}
+
 export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser, plansLoading = false }: {
   chatList: any[]; onOpenChat: (c: any) => void; onLeaveChat?: (id: number, addSystemMsg?: boolean) => void;
   plansLoading?: boolean;
@@ -572,9 +598,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                       : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><User size={22} color="#fff" /></View>}
                   </View>
                 ) : chat.eventImage ? (
-                  <View style={{ width: 54, height: 54, borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 }}>
-                    <Image source={{ uri: chat.eventImage }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                  </View>
+                  <EventThumb uri={chat.eventImage} emoji={chat.eventEmoji} colors={chat.colors} />
                 ) : (() => {
                   const photos = (chat.avatars || []).filter(Boolean).slice(0, 2)
                   const cols = (chat.colors || ['#818CF8', '#6366F1'])
