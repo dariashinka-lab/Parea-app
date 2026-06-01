@@ -3115,6 +3115,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         }
         // Remove duo chat for this event
         const chatIdToRemove = officialEventChatMapRef.current[evId]
+        // Distinguish a real "partner left" (chat still exists, I'm just no
+        // longer a member because they're gone) from stale local state (chat
+        // was already deleted — e.g. we cleaned up test data, or the whole
+        // crew dissolved). Only the first deserves a toast; the second is
+        // silent cleanup, otherwise the poll re-fires the notification every
+        // 15s until the user manually resets local state.
+        let chatStillExists = false
+        if (chatIdToRemove) {
+          const { data: chatRow } = await supabase.from('chats').select('id').eq('id', chatIdToRemove).maybeSingle()
+          chatStillExists = !!chatRow
+        }
         if (chatIdToRemove) setChatList(prev => prev.filter((c: any) => c.id !== chatIdToRemove))
         setOfficialEventChatMap(prev => { const n = { ...prev }; delete n[evId]; return n })
         // Reset event status back to 'going'
@@ -3122,7 +3133,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         // Reset event_attendees status back to 'looking' in DB
         supabase.from('event_attendees').update({ status: 'looking' })
           .eq('event_ref_id', evId).eq('profile_id', userData.dbId)
-        showToast('We\'ll find you a new match', 'Partner left 👋', '🔍')
+        if (chatStillExists) {
+          showToast('We\'ll find you a new match', 'Partner left 👋', '🔍')
+        }
       }
     }
     checkPartnerLeft()
