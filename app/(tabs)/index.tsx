@@ -250,7 +250,7 @@ Score each candidate 0-100 for companion compatibility.${user.eventContext ? ' B
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
 
-function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, joinedEvents, onJoin, userInterests, setUserEventFormat, setUserEventTransport, onJoinConfirmed, pendingJoinEv, onPendingJoinConsumed, extraEvents, approvedJoiners = {}, tonightVibe, setTonightVibe, onBellPress, unreadCount, bellShake, userData, onCancelHostedEvent, liveGoing = {} }: any) {
+function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, joinedEvents, onJoin, userInterests, setUserEventFormat, setUserEventTransport, onJoinConfirmed, pendingJoinEv, onPendingJoinConsumed, extraEvents, approvedJoiners = {}, tonightVibe, setTonightVibe, onBellPress, unreadCount, bellShake, userData, onCancelHostedEvent, crewStats = {} }: any) {
   const insets = useSafeAreaInsets()
   const [vibeEditOpen, setVibeEditOpen] = useState(false)
   const [draftVibe, setDraftVibe] = useState(tonightVibe)
@@ -1002,17 +1002,24 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                       <PhMapPin size={11} color={ev.location || ev.distance ? '#94A3B8' : 'transparent'} weight="regular" />
                       <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }} numberOfLines={1}>{ev.location || ev.distance || ''}</Text>
                     </View>
-                    {liveGoing[ev.id] > 0 && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }}>
-                        <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '700' }}>{liveGoing[ev.id]} going</Text>
-                        {liveGoing[ev.id] >= 3 && (
-                          <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
-                            <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: liveGoing[ev.id] > 0 ? 6 : 8 }}>
+                    {(() => {
+                      const st = crewStats[ev.id]
+                      if (!st || st.crews === 0) return null
+                      const spotsTxt = st.spotsLeft === 0 ? 'crew full' : `${st.spotsLeft} spot${st.spotsLeft === 1 ? '' : 's'} left`
+                      return (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+                          <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '700' }}>
+                            {st.crews} crew{st.crews === 1 ? '' : 's'} · {spotsTxt}
+                          </Text>
+                          {st.members >= 3 && (
+                            <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
+                            </View>
+                          )}
+                        </View>
+                      )
+                    })()}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: crewStats[ev.id]?.crews ? 6 : 8 }}>
                       {(() => { const st = getJoinState(ev); const active = st !== 'none'; return (
                         <TouchableOpacity
                           onPress={() => { if (!active) openJoinSheet(ev) }}
@@ -1074,16 +1081,21 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                             </View>
                           )}
                           {ev.price && <Text style={{ fontSize: 11, color: '#16a34a', fontWeight: '700' }}>{ev.price}</Text>}
-                          {liveGoing[ev.id] > 0 && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                              <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '700' }}>{liveGoing[ev.id]} going</Text>
-                              {liveGoing[ev.id] >= 3 && (
-                                <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
-                                  <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
-                                </View>
-                              )}
-                            </View>
-                          )}
+                          {(() => {
+                            const st = crewStats[ev.id]
+                            if (!st || st.crews === 0) return null
+                            const spotsTxt = st.spotsLeft === 0 ? 'crew full' : `${st.spotsLeft} spot${st.spotsLeft === 1 ? '' : 's'} left`
+                            return (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2, flexWrap: 'wrap' }}>
+                                <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '700' }}>{st.crews} crew{st.crews === 1 ? '' : 's'} · {spotsTxt}</Text>
+                                {st.members >= 3 && (
+                                  <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
+                                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
+                                  </View>
+                                )}
+                              </View>
+                            )
+                          })()}
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -1142,7 +1154,7 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                         <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, backgroundColor: '#EEF2FF' }}>
                           <Text style={{ fontSize: 10, fontWeight: '700', color: '#4338CA', textTransform: 'capitalize' }}>{ev.category}</Text>
                         </View>
-                        {liveGoing[ev.id] >= 3 && (
+                        {(crewStats[ev.id]?.members || 0) >= 3 && (
                           <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
                             <Text style={{ fontSize: 10, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
                           </View>
@@ -2040,11 +2052,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // picks one to join or creates their own; multiple chats per event are allowed.
   // Each crew = { chatId, members: [{ id, name, photo, color, age, ... }], avgMatch }.
   const [crewsByEvent, setCrewsByEvent] = useState<Record<number, Array<{ chatId: number; members: any[]; avgMatch: number }>>>({})
-  // Live "N going" count per event — number of Parea users actively engaged with
-  // the event (status looking/ready/confirmed). Distinct from event.participantsCount
-  // which is the scraped ticket-buyer count from the source. Drives the "N going"
-  // and "Popular" badges on event cards so users see real activity at a glance.
-  const [liveGoingByEvent, setLiveGoingByEvent] = useState<Record<number, number>>({})
+  // Aggregated crew stats per event for the feed cards: how many crews are
+  // forming + total members across them + total spots still open. Drives the
+  // "N crew · X spots left" call-to-action on event cards. Sourced from a
+  // SECURITY DEFINER RPC because chats/chat_members are RLS-hidden from
+  // non-members, so a direct count would always be 0 for the discovery feed.
+  const [crewStatsByEvent, setCrewStatsByEvent] = useState<Record<number, { crews: number; members: number; spotsLeft: number }>>({})
   // Bidirectional crew_pref + gender check.
   // Returns true if (a) my preference allows the other person's gender AND (b) their preference allows my gender.
   const fitsCrewPref = (myPref: string, myGender: string | undefined, theirPref: string, theirGender: string | undefined) => {
@@ -2773,36 +2786,39 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     return () => { cancelled = true; clearInterval(interval); supabase.removeChannel(cmChannel) }
   }, [Object.keys(joinedEvents).join(','), userData?.dbId])
 
-  // Live "N going" counts per event — one query for all events the user can see,
-  // grouped client-side. Status filter excludes 'looking' people who never made
-  // it past format selection so the badge reflects real intent. Realtime keeps
-  // it instant; 30s poll is a safety net for missed broadcasts.
+  // Crew-stats aggregation per event for the feed: how many crews are forming,
+  // total members across them, total spots still open. Uses a definer RPC
+  // (chats/chat_members would be RLS-hidden from non-members). Refetches on
+  // chats or chat_members changes + a 30s poll safety net. Degrades safely
+  // when the RPC isn't deployed yet — empty map → no badges (no crash).
   useEffect(() => {
     let cancelled = false
-    const fetchCounts = async () => {
-      const { data } = await supabase
-        .from('event_attendees')
-        .select('event_ref_id, profile_id')
-        .in('status', ['looking', 'ready', 'confirmed'])
+    const fetchStats = async () => {
+      // Visible event ids: official from DB + community + user-created.
+      const officialIds = feedOfficialDbEvents.map((e: any) => e.id).filter((n: any) => typeof n === 'number')
+      const communityIds = dbCommunityEvents.map((e: any) => e.id).filter((n: any) => typeof n === 'number')
+      const ids = Array.from(new Set([...officialIds, ...communityIds]))
+      if (ids.length === 0) return
+      const { data } = await supabase.rpc('get_events_crew_stats', { p_event_ids: ids })
       if (cancelled || !data) return
-      const counts: Record<number, Set<string>> = {}
-      ;(data as any[]).forEach((r) => {
-        if (!counts[r.event_ref_id]) counts[r.event_ref_id] = new Set()
-        counts[r.event_ref_id].add(r.profile_id)
+      const out: Record<number, { crews: number; members: number; spotsLeft: number }> = {}
+      Object.entries(data as any).forEach(([k, v]: any) => {
+        out[Number(k)] = {
+          crews: Number(v?.crews) || 0,
+          members: Number(v?.members) || 0,
+          spotsLeft: Number(v?.spots_left) || 0,
+        }
       })
-      const out: Record<number, number> = {}
-      Object.entries(counts).forEach(([k, set]) => { out[Number(k)] = set.size })
-      setLiveGoingByEvent(out)
+      setCrewStatsByEvent(out)
     }
-    fetchCounts()
-    const interval = setInterval(fetchCounts, 30000)
-    const channel = supabase.channel('live_going_counts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_attendees' }, () => {
-        if (!cancelled) fetchCounts()
-      })
+    fetchStats()
+    const interval = setInterval(fetchStats, 30000)
+    const channel = supabase.channel('crew_stats_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members' }, () => { if (!cancelled) fetchStats() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => { if (!cancelled) fetchStats() })
       .subscribe()
     return () => { cancelled = true; clearInterval(interval); supabase.removeChannel(channel) }
-  }, [])
+  }, [feedOfficialDbEvents.length, dbCommunityEvents.length])
 
   // Poll for other 'ready' users when we're in waiting state (readyCountMap[id] === 0 = only self is ready)
   useEffect(() => {
@@ -5201,7 +5217,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       <SafeAreaView style={s.fill} edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined}>
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none' }}>
-            <HomeTab city={city} setCityOpen={setCityOpen} feedFilter={feedFilter} setFeedFilter={setFeedFilter} onEventPress={setEventDetail} joinedEvents={joinedEvents} onJoin={handleJoinEvent} userInterests={userData?.interests || []} setUserEventFormat={setUserEventFormat} setUserEventTransport={setUserEventTransport} onJoinConfirmed={handleJoinConfirmed} pendingJoinEv={pendingJoinEv} onPendingJoinConsumed={() => setPendingJoinEv(null)} extraEvents={[...userCreatedEvents.map(uc => { const dbVer = dbCommunityEvents.find(d => d.id === uc.id); return dbVer ? { ...uc, participantsCount: dbVer.participantsCount } : uc }), ...dbCommunityEvents.filter(e => !userCreatedEvents.some(u => u.id === e.id))]} approvedJoiners={approvedJoiners} tonightVibe={tonightVibe} setTonightVibe={(v: any) => { setTonightVibe(v); onUpdateUserData?.({ socialEnergy: v.energy, drinksPref: v.drinks, smokingPref: v.smoking }) }} onBellPress={openNotifPanel} unreadCount={unreadCount} bellShake={bellShake} userData={userData} onCancelHostedEvent={(ev: any) => { setUserCreatedEvents(prev => prev.filter(e => e.id !== ev.id)); setPendingJoinRequests(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setApprovedJoiners(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setChatList(prev => prev.filter(c => c.hostEventId !== ev.id)); showToast("Event deleted 🗑️") }} liveGoing={liveGoingByEvent} />
+            <HomeTab city={city} setCityOpen={setCityOpen} feedFilter={feedFilter} setFeedFilter={setFeedFilter} onEventPress={setEventDetail} joinedEvents={joinedEvents} onJoin={handleJoinEvent} userInterests={userData?.interests || []} setUserEventFormat={setUserEventFormat} setUserEventTransport={setUserEventTransport} onJoinConfirmed={handleJoinConfirmed} pendingJoinEv={pendingJoinEv} onPendingJoinConsumed={() => setPendingJoinEv(null)} extraEvents={[...userCreatedEvents.map(uc => { const dbVer = dbCommunityEvents.find(d => d.id === uc.id); return dbVer ? { ...uc, participantsCount: dbVer.participantsCount } : uc }), ...dbCommunityEvents.filter(e => !userCreatedEvents.some(u => u.id === e.id))]} approvedJoiners={approvedJoiners} tonightVibe={tonightVibe} setTonightVibe={(v: any) => { setTonightVibe(v); onUpdateUserData?.({ socialEnergy: v.energy, drinksPref: v.drinks, smokingPref: v.smoking }) }} onBellPress={openNotifPanel} unreadCount={unreadCount} bellShake={bellShake} userData={userData} onCancelHostedEvent={(ev: any) => { setUserCreatedEvents(prev => prev.filter(e => e.id !== ev.id)); setPendingJoinRequests(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setApprovedJoiners(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setChatList(prev => prev.filter(c => c.hostEventId !== ev.id)); showToast("Event deleted 🗑️") }} crewStats={crewStatsByEvent} />
           </View>
           <View style={{ position: 'absolute', top: -insets.top, left: 0, right: 0, bottom: 0, display: activeTab === 'vibecheck' ? 'flex' : 'none' }}>
           <VibeCheckTab
