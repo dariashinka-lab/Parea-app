@@ -1029,7 +1029,7 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
         })()}
 
         {/* ── OFFICIAL EVENTS ── */}
-        {!forYouFilter && officialDbLoading && (
+        {!forYouFilter && typeFilter !== 'community' && officialDbLoading && (
           <>
             <View style={{ paddingHorizontal: 20, marginTop: 24, marginBottom: 12 }}>
               <Text style={{ fontSize: 18, fontWeight: '900', color: '#1E1B4B', letterSpacing: -0.3 }}>Official Events</Text>
@@ -1048,7 +1048,7 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
             </ScrollView>
           </>
         )}
-        {!forYouFilter && !officialDbLoading && officialDbEvents.length > 0 && (
+        {!forYouFilter && typeFilter !== 'community' && !officialDbLoading && officialDbEvents.length > 0 && (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 24, marginBottom: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1203,7 +1203,7 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
         )}
 
         {/* ── COMMUNITY ── */}
-        {!forYouFilter && (<>
+        {!forYouFilter && typeFilter !== 'official' && (<>
         {communityAll.length > 0 && (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 24, marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
