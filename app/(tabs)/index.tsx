@@ -516,11 +516,16 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
     const officialForYou = officialAll.filter((ev: any) => !city || !ev.city || ev.city.toLowerCase() === city.toLowerCase())
     const all: any[] = [...officialForYou, ...communityAll]
     const seen = new Set<number>()
+    // Threshold 30 (was 60) — any single strong signal qualifies (interests
+    // match, vibe match, or language + today). The old bar of 60 effectively
+    // required two signals to overlap, so 'balanced' vibe (VIBE_CATS=[]) +
+    // narrow interests would leave the feed empty. Lower bar surfaces more,
+    // ordering still puts the best matches first.
     const scored = all.flatMap(ev => {
       if (seen.has(ev.id)) return []
       seen.add(ev.id)
       const { score, reasons } = scoreForYou(ev)
-      if (score < 60) return []
+      if (score < 30) return []
       return [{ ev, score, reasons }]
     })
     scored.sort((a, b) => b.score - a.score)
