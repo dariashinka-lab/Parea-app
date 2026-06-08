@@ -231,7 +231,10 @@ async def scrape_event(page, url):
             for stop in ['Event Dates', 'EventDay', 'More about', 'Ticket', 'Producer', 'Organizer', 'Phone:', 'Email:', 'Website:']:
                 if stop in after:
                     after = after[:after.find(stop)]
-            desc = after.strip()[:800]
+            # Cap at 5000 chars — earlier 800 truncated long Russian/multi-language
+            # descriptions mid-sentence ("Анна Пл..." instead of "Анна Плетнёва").
+            # Real soldout descriptions almost never exceed ~3500 chars.
+            desc = after.strip()[:5000]
 
         # Prefer the first city encountered in the Event Dates tour (tour order
         # = canonical start). extract_city(joined-list) returns whichever city

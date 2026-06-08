@@ -7105,9 +7105,26 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           resizeMode={eventDetail.type === 'official' ? 'contain' : 'cover'}
                         />
                       </View>
-                    ) : (
-                      <LinearGradient colors={eventDetail.gradient as any} style={{ height: 280 }} />
-                    )}
+                    ) : (() => {
+                      // No-poster placeholder: a category-themed gradient with the
+                      // category icon centered. Previously the gradient ranged over
+                      // any colors the event row carried, which sometimes resolved
+                      // to whites and read as a blank/white screen for testers.
+                      const fallbackColors = (CATEGORY_BG[eventDetail.category] || ['#A78BFA', '#6366F1']) as [string, string]
+                      const iconColor = CATEGORY_COLOR[eventDetail.category] || '#4338CA'
+                      const PlaceholderIcon = CATEGORY_ICON[eventDetail.category] || PhMapPin
+                      return (
+                        <LinearGradient colors={fallbackColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                          style={{ height: 280, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                          <View style={{ width: 88, height: 88, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' }}>
+                            <PlaceholderIcon size={48} color={iconColor} weight="duotone" />
+                          </View>
+                          <Text style={{ fontSize: 13, fontFamily: 'Outfit-SemiBold', color: iconColor, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                            {eventDetail.category || 'Event'}
+                          </Text>
+                        </LinearGradient>
+                      )
+                    })()}
                     <LinearGradient colors={['transparent', 'rgba(0,0,0,0.65)']} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 40, paddingHorizontal: 20, paddingBottom: 20 }}>
                       {(() => {
                         // Drop the category for official events (scraper miscategorized — e.g. RUES
