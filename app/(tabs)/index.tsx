@@ -2288,16 +2288,33 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       // transient empty fetch can't wipe the whole list.
       {
         const dbIdSet = new Set<number>(dbChatIds as number[])
+        // Build a set of community/hosted event ids that already have a real
+        // DB-backed chat — so we can drop any optimistic stable-id duplicates
+        // (negative id, same event) that the host's earlier setChatList path
+        // left behind. Without this the chat list shows two cards for the
+        // same event after a real DB chat arrives via realtime/hydration.
+        const dbEventIds = new Set<number>()
+        ;(memberships as any[]).forEach(m => {
+          const ch = m.chats as any
+          if (ch?.event_id != null && (ch?.type === 'duo' || ch?.type === 'group')) {
+            dbEventIds.add(ch.event_id as number)
+          }
+        })
         setChatList(prev => {
           const next = prev.filter((c: any) => {
             if (c.type !== 'duo' && c.type !== 'group') return true
             if (typeof c.id !== 'number') return true
             // Local-only chats use a negative stable id (e.g. -1_000_000 - evId)
             // for hosted-event group chats that live only in this client's state.
-            // They never appear in DB chat_members, so the reconcile would drop
-            // them every reload — and the poll would re-create them and re-fire
-            // "X joined the group" every time.
-            if (c.id < 0) return true
+            // Drop them WHEN a real DB chat for the same event has arrived —
+            // otherwise the user sees two identical 'Pot' cards. Keep them when
+            // the DB chat hasn't been created yet (otherwise we'd lose the local
+            // optimistic chat between sessions).
+            if (c.id < 0) {
+              const evId = c.hostEventId ?? c.communityEventId ?? c.eventRefId
+              if (evId != null && dbEventIds.has(evId)) return false
+              return true
+            }
             if (dbIdSet.has(c.id)) return true
             if (c.isNew) return true
             const createdMs = Date.parse(c.time)
