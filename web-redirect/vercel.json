@@ -1,7 +1,5 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/event/:id", "destination": "/index.html" },
-    { "source": "/event/:id/:rest*", "destination": "/index.html" }
+    { "source": "/event/(.*)", "destination": "/index.html" }
   ]
 }
