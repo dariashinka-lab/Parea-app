@@ -621,53 +621,61 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                           const formatLabel = crewFormat === '1+1' ? '1+1' : crewFormat === 'party' ? 'Party' : crewFormat === 'squad' ? 'Squad' : null
                           return (
                             <View key={crew.chatId}
-                              style={{ backgroundColor: 'rgba(167,139,250,0.06)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(167,139,250,0.22)', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                              <View style={{ flexDirection: 'row' }}>
-                                {crew.members.slice(0, 3).map((m: any, i: number) => {
-                                  const openMember = () => {
-                                    setPreviewProfile({ ...m, flag: FLAG_MAP[m.langs?.[0]] || '🌍', langs: (m.langs || []).map((l: string) => FLAG_MAP[l] || l) })
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                                  }
-                                  return (
-                                    <TouchableOpacity key={m.id || i} activeOpacity={0.85} onPress={openMember}
-                                      style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 2.5, borderColor: 'rgba(167,139,250,0.45)', marginLeft: i > 0 ? -12 : 0, overflow: 'hidden', backgroundColor: m.color || '#818CF8', alignItems: 'center', justifyContent: 'center' }}>
-                                      {m.photo
-                                        ? <Image source={{ uri: m.photo }} style={{ width: '100%', height: '100%' }} />
-                                        : <Text style={{ fontSize: 17 }}>👤</Text>}
-                                    </TouchableOpacity>
-                                  )
-                                })}
-                              </View>
-                              <View style={{ flex: 1, gap: 5 }}>
-                                <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: -0.2 }}>
-                                  {(crew.members[0]?.name?.split(' ')[0] || 'Crew')}{crew.members.length > 1 ? ` +${crew.members.length - 1}` : ''}
-                                </Text>
-                                {formatLabel && (
-                                  <View style={{ alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)' }}>
-                                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.4 }}>{formatLabel}</Text>
+                              style={{ backgroundColor: 'rgba(167,139,250,0.06)', borderRadius: 20, padding: 14, borderWidth: 1, borderColor: 'rgba(167,139,250,0.22)', gap: 12 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <View style={{ flexDirection: 'row' }}>
+                                  {crew.members.slice(0, 3).map((m: any, i: number) => {
+                                    const openMember = () => {
+                                      setPreviewProfile({ ...m, flag: FLAG_MAP[m.langs?.[0]] || '🌍', langs: (m.langs || []).map((l: string) => FLAG_MAP[l] || l) })
+                                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                                    }
+                                    return (
+                                      <TouchableOpacity key={m.id || i} activeOpacity={0.85} onPress={openMember}
+                                        style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 2.5, borderColor: 'rgba(167,139,250,0.45)', marginLeft: i > 0 ? -12 : 0, overflow: 'hidden', backgroundColor: m.color || '#818CF8', alignItems: 'center', justifyContent: 'center' }}>
+                                        {m.photo
+                                          ? <Image source={{ uri: m.photo }} style={{ width: '100%', height: '100%' }} />
+                                          : <Text style={{ fontSize: 16 }}>👤</Text>}
+                                      </TouchableOpacity>
+                                    )
+                                  })}
+                                </View>
+                                <View style={{ flex: 1, gap: 4 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: -0.2 }}>
+                                      {(crew.members[0]?.name?.split(' ')[0] || 'Crew')}{crew.members.length > 1 ? ` +${crew.members.length - 1}` : ''}
+                                    </Text>
+                                    {formatLabel && (
+                                      <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)' }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.4 }}>{formatLabel}</Text>
+                                      </View>
+                                    )}
                                   </View>
-                                )}
-                                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontFamily: 'Outfit-Medium' }}>
-                                  {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
-                                </Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                  <Sparkle size={11} color={crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)'} weight="fill" />
-                                  <Text style={{ fontSize: 11, fontWeight: '700', color: crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)' }}>
-                                    {crew.avgMatch > 0 ? `${crew.avgMatch}% vibe match` : 'Matching…'}
+                                  <Text numberOfLines={1} style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontFamily: 'Outfit-Medium' }}>
+                                    {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
                                   </Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Sparkle size={11} color={crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)'} weight="fill" />
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)' }}>
+                                      {crew.avgMatch > 0 ? `${crew.avgMatch}% vibe match` : 'Matching…'}
+                                    </Text>
+                                  </View>
                                 </View>
                               </View>
-                              <View style={{ gap: 10 }}>
+                              {/* Pills moved to a full-width bottom row so the header has the
+                                  whole card width for the avatars + name + format chip. On a
+                                  narrow Xiaomi screen the side-stacked pills were squeezing
+                                  the name to ~80px ('Dar…') and wrapping 'Party' onto two lines. */}
+                              <View style={{ flexDirection: 'row', gap: 10 }}>
                                 <TouchableOpacity activeOpacity={0.85}
                                   onPress={openCrewPreview}
-                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                  style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', minWidth: 78 }}>
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  style={{ flex: 1, paddingVertical: 11, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center' }}>
                                   <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>View</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity activeOpacity={0.85}
                                   onPress={() => onJoinSpecificCrew?.(ev, crew.chatId)}
-                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                  style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 99, backgroundColor: '#43E97B', shadowColor: '#43E97B', shadowOpacity: 0.35, shadowRadius: 10, elevation: 4, alignItems: 'center', minWidth: 78 }}>
+                                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  style={{ flex: 1, paddingVertical: 11, borderRadius: 99, backgroundColor: '#43E97B', shadowColor: '#43E97B', shadowOpacity: 0.35, shadowRadius: 10, elevation: 4, alignItems: 'center' }}>
                                   <Text style={{ fontSize: 13, fontWeight: '900', color: '#052e16' }}>Join</Text>
                                 </TouchableOpacity>
                               </View>
@@ -1102,53 +1110,57 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                                   // Card itself is non-interactive — two explicit pills on the
                                   // right do the actions. View = preview members, Join = commit.
                                   <View key={crew.chatId}
-                                    style={{ backgroundColor: 'rgba(167,139,250,0.06)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(167,139,250,0.22)', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                                    <View style={{ flexDirection: 'row' }}>
-                                      {crew.members.slice(0, 3).map((m: any, i: number) => {
-                                        const openMember = () => {
-                                          setPreviewProfile({ ...m, flag: FLAG_MAP[m.langs?.[0]] || '🌍', langs: (m.langs || []).map((l: string) => FLAG_MAP[l] || l) })
-                                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                                        }
-                                        return (
-                                          <TouchableOpacity key={m.id || i} activeOpacity={0.85} onPress={openMember}
-                                            style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 2.5, borderColor: 'rgba(167,139,250,0.45)', marginLeft: i > 0 ? -12 : 0, overflow: 'hidden', backgroundColor: m.color || '#818CF8', alignItems: 'center', justifyContent: 'center' }}>
-                                            {m.photo
-                                              ? <Image source={{ uri: m.photo }} style={{ width: '100%', height: '100%' }} />
-                                              : <Text style={{ fontSize: 17 }}>👤</Text>}
-                                          </TouchableOpacity>
-                                        )
-                                      })}
-                                    </View>
-                                    <View style={{ flex: 1, gap: 5 }}>
-                                      <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: -0.2 }}>
-                                        {(crew.members[0]?.name?.split(' ')[0] || 'Crew')}{crew.members.length > 1 ? ` +${crew.members.length - 1}` : ''}
-                                      </Text>
-                                      {formatLabel && (
-                                        <View style={{ alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)' }}>
-                                          <Text style={{ fontSize: 10, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.4 }}>{formatLabel}</Text>
+                                    style={{ backgroundColor: 'rgba(167,139,250,0.06)', borderRadius: 20, padding: 14, borderWidth: 1, borderColor: 'rgba(167,139,250,0.22)', gap: 12 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                      <View style={{ flexDirection: 'row' }}>
+                                        {crew.members.slice(0, 3).map((m: any, i: number) => {
+                                          const openMember = () => {
+                                            setPreviewProfile({ ...m, flag: FLAG_MAP[m.langs?.[0]] || '🌍', langs: (m.langs || []).map((l: string) => FLAG_MAP[l] || l) })
+                                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                                          }
+                                          return (
+                                            <TouchableOpacity key={m.id || i} activeOpacity={0.85} onPress={openMember}
+                                              style={{ width: 42, height: 42, borderRadius: 21, borderWidth: 2.5, borderColor: 'rgba(167,139,250,0.45)', marginLeft: i > 0 ? -12 : 0, overflow: 'hidden', backgroundColor: m.color || '#818CF8', alignItems: 'center', justifyContent: 'center' }}>
+                                              {m.photo
+                                                ? <Image source={{ uri: m.photo }} style={{ width: '100%', height: '100%' }} />
+                                                : <Text style={{ fontSize: 16 }}>👤</Text>}
+                                            </TouchableOpacity>
+                                          )
+                                        })}
+                                      </View>
+                                      <View style={{ flex: 1, gap: 4 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                          <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: -0.2 }}>
+                                            {(crew.members[0]?.name?.split(' ')[0] || 'Crew')}{crew.members.length > 1 ? ` +${crew.members.length - 1}` : ''}
+                                          </Text>
+                                          {formatLabel && (
+                                            <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)' }}>
+                                              <Text style={{ fontSize: 10, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.4 }}>{formatLabel}</Text>
+                                            </View>
+                                          )}
                                         </View>
-                                      )}
-                                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontFamily: 'Outfit-Medium' }}>
-                                        {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
-                                      </Text>
-                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                        <Sparkle size={11} color={crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)'} weight="fill" />
-                                        <Text style={{ fontSize: 11, fontWeight: '700', color: crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)' }}>
-                                          {crew.avgMatch > 0 ? `${crew.avgMatch}% vibe match` : 'Matching…'}
+                                        <Text numberOfLines={1} style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontFamily: 'Outfit-Medium' }}>
+                                          {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
                                         </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                          <Sparkle size={11} color={crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)'} weight="fill" />
+                                          <Text style={{ fontSize: 11, fontWeight: '700', color: crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)' }}>
+                                            {crew.avgMatch > 0 ? `${crew.avgMatch}% vibe match` : 'Matching…'}
+                                          </Text>
+                                        </View>
                                       </View>
                                     </View>
-                                    <View style={{ gap: 10 }}>
+                                    <View style={{ flexDirection: 'row', gap: 10 }}>
                                       <TouchableOpacity activeOpacity={0.85}
                                         onPress={openCrewPreview}
-                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                        style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', minWidth: 78 }}>
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        style={{ flex: 1, paddingVertical: 11, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center' }}>
                                         <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>View</Text>
                                       </TouchableOpacity>
                                       <TouchableOpacity activeOpacity={0.85}
                                         onPress={() => onJoinSpecificCrew?.(ev, crew.chatId)}
-                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                        style={{ paddingHorizontal: 18, paddingVertical: 10, borderRadius: 99, backgroundColor: '#43E97B', shadowColor: '#43E97B', shadowOpacity: 0.35, shadowRadius: 10, elevation: 4, alignItems: 'center', minWidth: 78 }}>
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        style={{ flex: 1, paddingVertical: 11, borderRadius: 99, backgroundColor: '#43E97B', shadowColor: '#43E97B', shadowOpacity: 0.35, shadowRadius: 10, elevation: 4, alignItems: 'center' }}>
                                         <Text style={{ fontSize: 13, fontWeight: '900', color: '#052e16' }}>Join</Text>
                                       </TouchableOpacity>
                                     </View>
