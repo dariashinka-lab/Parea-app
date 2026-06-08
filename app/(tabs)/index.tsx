@@ -83,8 +83,8 @@ const CATEGORY_ICON: Record<string, any> = { coffee: PhCoffee, sports: Barbell, 
 type MatchResult = { id: number; score: number; reason: string }
 
 async function aiScoreRealAttendees(
-  user: { name?: string; age?: any; langs?: string[]; interests?: string[]; drinksPref?: string; smokingPref?: string; bio?: string; transport?: string; dealbreakers?: string[] },
-  candidates: { id: string; name: string; age?: any; langs?: string[]; interests?: string[]; drinksPref?: string; smokingPref?: string; bio?: string; transport?: string; hasPets?: boolean }[]
+  user: { name?: string; age?: any; langs?: string[]; interests?: string[]; drinksPref?: string; smokingPref?: string; bio?: string; transport?: string; dealbreakers?: string[]; socialEnergy?: string },
+  candidates: { id: string; name: string; age?: any; langs?: string[]; interests?: string[]; drinksPref?: string; smokingPref?: string; bio?: string; transport?: string; hasPets?: boolean; socialEnergy?: string }[]
 ): Promise<{ id: string; score: number; vibe: string }[]> {
   if (candidates.length === 0) return []
   // For official-event attendees we hard-cut on user's explicit dealbreakers —
