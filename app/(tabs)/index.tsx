@@ -1002,17 +1002,17 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                       <PhMapPin size={11} color={ev.location || ev.distance ? '#94A3B8' : 'transparent'} weight="regular" />
                       <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }} numberOfLines={1}>{ev.location || ev.distance || ''}</Text>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
-                      {liveGoing[ev.id] > 0 ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }}>
-                          <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '700' }}>{liveGoing[ev.id]} going</Text>
-                          {liveGoing[ev.id] >= 3 && (
-                            <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
-                              <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
-                            </View>
-                          )}
-                        </View>
-                      ) : <View />}
+                    {liveGoing[ev.id] > 0 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }}>
+                        <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '700' }}>{liveGoing[ev.id]} going</Text>
+                        {liveGoing[ev.id] >= 3 && (
+                          <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 99, backgroundColor: '#FEF3C7' }}>
+                            <Text style={{ fontSize: 9, fontWeight: '800', color: '#92400E' }}>🔥 Popular</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: liveGoing[ev.id] > 0 ? 6 : 8 }}>
                       {(() => { const st = getJoinState(ev); const active = st !== 'none'; return (
                         <TouchableOpacity
                           onPress={() => { if (!active) openJoinSheet(ev) }}
