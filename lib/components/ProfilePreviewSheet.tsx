@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Sparkle } from '../phosphor-icons'
 import { INTEREST_ICON_MAP } from '../interest-icons'
 import { FLAG_MAP, INTERESTS_BY_CATEGORY, INTEREST_CATEGORY_PALETTE, LANGUAGES_LIST } from '../feed-constants'
+import { SOCIAL_ENERGY } from '../social-energy'
 import { supabase } from '../supabase'
 
 export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, onReport, inline = false, skipHydrate = false }: { profile: any; onClose: () => void; onBlock?: (profile: any) => void; onReport?: (profile: any) => void; inline?: boolean; skipHydrate?: boolean }) {
@@ -52,6 +53,7 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
           transport: full.transport ?? profileProp.transport,
           drinksPref: full.drinks_pref ?? profileProp.drinksPref,
           smokingPref: full.smoking_pref ?? profileProp.smokingPref,
+          socialEnergy: full.social_energy ?? profileProp.socialEnergy,
           musicGenres: full.music_genres || profileProp.musicGenres || [],
           format: full.format ?? profileProp.format,
           langs: langCodes,
@@ -201,9 +203,11 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
             const transportText = profile.transport === 'car' ? 'Driving (open to giving a lift)' : profile.transport === 'lift' ? 'Open to carpooling' : 'Meeting there'
             const genderRaw = (profile.gender || '').toLowerCase()
             const genderText = genderRaw === 'female' ? 'Female' : genderRaw === 'male' ? 'Male' : genderRaw ? genderRaw.charAt(0).toUpperCase() + genderRaw.slice(1) : ''
+            const energyLabel = SOCIAL_ENERGY.find(e => e.id === profile.socialEnergy)?.label
             const rows = [
               profile.city && { label: 'Lives in', value: profile.city },
               genderText && { label: 'Gender', value: genderText },
+              energyLabel && { label: 'Vibe', value: energyLabel },
               langText && { label: 'Languages', value: langText },
               { label: 'Getting there', value: transportText },
             ].filter(Boolean) as { label: string; value: string }[]

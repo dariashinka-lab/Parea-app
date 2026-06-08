@@ -631,12 +631,17 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                 </View>
               )}
 
-              {vibeParts.length > 0 && (
-                <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 16, shadowColor: '#6366F1', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
-                  <Text style={{ fontSize: 11, fontFamily: 'Outfit-SemiBold', color: '#94A3B8', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Your vibe</Text>
-                  <Text style={{ fontSize: 14, fontFamily: 'Outfit-Medium', color: '#1E1B4B', lineHeight: 21 }}>{vibeParts.join(' · ')}</Text>
+              <TouchableOpacity activeOpacity={0.85}
+                onPress={() => { setDraftLangs(userData?.langs || []); setLangEditOpen(true) }}
+                style={{ backgroundColor: '#fff', borderRadius: 18, padding: 16, shadowColor: '#6366F1', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 11, fontFamily: 'Outfit-SemiBold', color: '#94A3B8', letterSpacing: 1.2, textTransform: 'uppercase' }}>Languages</Text>
+                  <Feather name="edit-2" size={13} color="#94A3B8" />
                 </View>
-              )}
+                <Text style={{ fontSize: 14, fontFamily: 'Outfit-Medium', color: langLabels.length > 0 ? '#1E1B4B' : '#94A3B8', lineHeight: 21 }}>
+                  {langLabels.length > 0 ? langLabels.join(' · ') : 'Tap to add languages'}
+                </Text>
+              </TouchableOpacity>
 
               {interests.length > 0 && (
                 <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 16, shadowColor: '#6366F1', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 }}>
