@@ -828,6 +828,20 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}><PushPin size={9} color="#fff" weight="duotone" /><Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>FEATURED</Text></View>
                     </View>
                   )}
+                  {/* NEW chip — fires when the event landed in the feed in the
+                      last 7 days. Sits opposite the Popular sticker (top-right,
+                      below FEATURED if present) so the two never collide. */}
+                  {(() => {
+                    if (!ev.created_at) return null
+                    const ageMs = Date.now() - new Date(ev.created_at).getTime()
+                    if (isNaN(ageMs) || ageMs > 7 * 24 * 60 * 60 * 1000) return null
+                    return (
+                      <View style={{ position: 'absolute', top: ev.is_promoted ? 36 : 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 99, backgroundColor: '#10B981', shadowColor: '#10B981', shadowOpacity: 0.45, shadowRadius: 6, elevation: 4 }}>
+                        <Sparkle size={10} color="#fff" weight="fill" />
+                        <Text style={{ fontSize: 10, fontWeight: '900', color: '#fff', letterSpacing: 0.3 }}>NEW</Text>
+                      </View>
+                    )
+                  })()}
                   {/* Popular sticker on the hero image — prominent, designer-y,
                       separate from the inline "1 crew · X spots left" text below. */}
                   {(crewStats[ev.id]?.members || 0) >= 3 && (
