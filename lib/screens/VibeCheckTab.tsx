@@ -639,8 +639,8 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                                 })}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: '800', color: '#fff', lineHeight: 18 }}>
-                                  {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
+                                <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
+                                  {(crew.members[0]?.name?.split(' ')[0] || 'Crew')}{crew.members.length > 1 ? ` +${crew.members.length - 1}` : ''}
                                 </Text>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                                   {formatLabel && (
