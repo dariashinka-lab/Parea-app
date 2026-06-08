@@ -639,19 +639,19 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                                 })}
                               </View>
                               <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff', flexShrink: 1 }}>
-                                    {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
-                                  </Text>
+                                <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
+                                  {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                                   {formatLabel && (
                                     <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)' }}>
                                       <Text style={{ fontSize: 9, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.3 }}>{formatLabel}</Text>
                                     </View>
                                   )}
+                                  <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                                    {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
+                                  </Text>
                                 </View>
-                                <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 3 }}>
-                                  {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
-                                </Text>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                                   <Sparkle size={10} color={crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)'} weight="fill" />
                                   <Text style={{ fontSize: 11, fontWeight: '700', color: crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)' }}>
@@ -1122,19 +1122,19 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                                       })}
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff', flexShrink: 1 }}>
-                                          {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
-                                        </Text>
+                                      <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
+                                        {crew.members.slice(0, 2).map((m: any) => m.name?.split(' ')[0] || 'Member').join(' & ')}{crew.members.length > 2 ? ` +${crew.members.length - 2}` : ''}
+                                      </Text>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                                         {formatLabel && (
                                           <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)' }}>
                                             <Text style={{ fontSize: 9, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.3 }}>{formatLabel}</Text>
                                           </View>
                                         )}
+                                        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+                                          {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
+                                        </Text>
                                       </View>
-                                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 3 }}>
-                                        {crew.members.length} of {crewMax} · {crewMax - crew.members.length} {crewMax - crew.members.length === 1 ? 'spot' : 'spots'} left
-                                      </Text>
                                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                                         <Sparkle size={10} color={crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)'} weight="fill" />
                                         <Text style={{ fontSize: 11, fontWeight: '700', color: crew.avgMatch > 0 ? scoreColor : 'rgba(255,255,255,0.4)' }}>
