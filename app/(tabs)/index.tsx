@@ -2309,6 +2309,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     if (Platform.OS === 'web') return
     const openFromData = (data: any) => {
       if (!data) return
+      // 'chat' — open the specific chat (deep link from new-message push).
       if (data.screen === 'chat' && data.chatId != null) {
         const chat = chatListRef.current.find((c: any) => c.id === data.chatId)
         if (chat) {
@@ -2317,6 +2318,21 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         }
         setMessagesInitialSubTab('messages')
         setActiveTab('messages')
+        return
+      }
+      // 'plans' — Plans/Going tab. Host's join-request notifications and
+      // joiner's host-approved / chat-created notifications all land here.
+      if (data.screen === 'plans') {
+        setMessagesInitialSubTab('going')
+        setActiveTab('messages')
+        return
+      }
+      // 'vibecheck' — crew matching for the event in the payload (crew_match,
+      // crew_invite). If the event is open, scrolling to it is the host's job;
+      // we just land on the tab.
+      if (data.screen === 'vibecheck') {
+        setActiveTab('vibecheck')
+        return
       }
     }
     // Cold start: app launched by tapping a notification.
@@ -5708,6 +5724,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                     p_host_id: ev.hostId ?? null,
                   })
                   if (joinErr) console.warn('join_party_chat error:', joinErr.message)
+                  // Notify the host that the joiner confirmed and the chat is live.
+                  // (Host already gets the local in-app member_joined via realtime/poll,
+                  // but a push wakes them up if the app is in the background.)
+                  if (ev.hostId) {
+                    sendPush([ev.hostId], `${userData?.name || 'Someone'} joined "${ev.title}"`,
+                      'Chat is ready — say hi 👋', { screen: 'chat', chatId: dbChatId, type: 'member_joined', emoji: '✅', color: '#10B981' })
+                  }
                 }
               }
               // For community events: prepend host profile to members list
