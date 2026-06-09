@@ -567,8 +567,16 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                       'joined') so the card stays compact with just the CTA. Also
                       hidden once the user is in a crew chat for this event: the
                       duo-format cap (e.g. 2) misleads ("CREW FOUND 1/2") when they
-                      actually joined a party crew of 20 — Open Chat is the right CTA. */}
-                  {!isCrewMode && !(isCommunity && joinedEvents?.[ev.id] === 'joined') && !officialEventChatMap?.[ev.id] && (
+                      actually joined a party crew of 20 — Open Chat is the right CTA.
+                      Also hidden when there are joinable crews below — the bar shows
+                      "5 / 2" (5 people looking, 2-person duo cap) which reads as
+                      "5 of 2" and confuses users; the actual crew cards below are
+                      the source of truth for membership. */}
+                  {(() => {
+                    const allCrews = crewsByEvent[ev.id] || []
+                    const hasJoinable = allCrews.some((c: any) => c.members.length > 0 && c.members.length < (c.maxSize || VIBE_FORMAT_MAX[c.format] || 5))
+                    return !isCrewMode && !(isCommunity && joinedEvents?.[ev.id] === 'joined') && !officialEventChatMap?.[ev.id] && !hasJoinable
+                  })() && (
                   <View style={{ marginBottom: 18 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                       <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.32)', fontWeight: '700', letterSpacing: 0.6 }}>
