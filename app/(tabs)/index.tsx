@@ -921,8 +921,20 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                         </LinearGradient>
                       )}
                       <View style={{ flex: 1, padding: 12, justifyContent: 'space-between' }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#1E1B4B', flex: 1, marginRight: 8 }} numberOfLines={2}>{ev.title}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#1E1B4B', flex: 1 }} numberOfLines={2}>{ev.title}</Text>
+                          {(() => {
+                            if (!ev.created_at) return null
+                            if (seenNewEventIds.includes(ev.id)) return null
+                            const ageMs = Date.now() - new Date(ev.created_at).getTime()
+                            if (isNaN(ageMs) || ageMs > 7 * 24 * 60 * 60 * 1000) return null
+                            return (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: '#10B981' }}>
+                                <Sparkle size={8} color="#fff" weight="fill" />
+                                <Text style={{ fontSize: 9, fontWeight: '900', color: '#fff', letterSpacing: 0.3 }}>NEW</Text>
+                              </View>
+                            )
+                          })()}
                           {ev.is_promoted && <PushPin size={12} color="#f59e0b" weight="duotone" />}
                         </View>
                         <View style={{ gap: 3, marginTop: 4 }}>
@@ -1003,6 +1015,18 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: '#1E1B4B', flex: 1 }} numberOfLines={1}>{ev.title}</Text>
+                        {(() => {
+                          if (!ev.created_at) return null
+                          if (seenNewEventIds.includes(ev.id)) return null
+                          const ageMs = Date.now() - new Date(ev.created_at).getTime()
+                          if (isNaN(ageMs) || ageMs > 7 * 24 * 60 * 60 * 1000) return null
+                          return (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: '#10B981' }}>
+                              <Sparkle size={9} color="#fff" weight="fill" />
+                              <Text style={{ fontSize: 10, fontWeight: '900', color: '#fff', letterSpacing: 0.3 }}>NEW</Text>
+                            </View>
+                          )
+                        })()}
                         {ev.visibility === 'private' && (
                           <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, backgroundColor: '#F1F5F9' }}>
                             <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>Private 🔒</Text>
