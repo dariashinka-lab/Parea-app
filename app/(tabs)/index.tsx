@@ -4266,25 +4266,47 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     prevChatCountRef.current = chatList.length
   }, [chatList.length])
 
-  // Purge chat-pointing notifications whose target chat no longer exists in
-  // chatList — user left, was kicked, or the chat got deleted server-side.
-  // Without this the bell shows "1 new" but tapping it reveals an empty panel
-  // (or, if the notif is rendered, tapping it does nothing because the chat
-  // is gone). Removing from state keeps the badge count and panel in sync.
-  // Only runs after chat hydration window (chatNotifReadyRef) — otherwise a
-  // notif fires during the empty-chatList moment on first load.
+  // Purge chat-pointing notifications when:
+  //  (a) the target chat no longer exists in chatList (left/kicked/deleted), or
+  //  (b) the chat's linked event ended >7 days ago — the chat is "long dead"
+  //      and hidden by MessagesTab, so tapping the notif lands the user on an
+  //      empty Chats tab. Same 7d cutoff visibleChats uses.
+  // Gate on persistLoadedState so first-load chatList=empty doesn't wipe valid
+  // notifs that haven't hydrated yet.
   useEffect(() => {
-    if (!chatNotifReadyRef.current) return
+    if (!persistLoadedState) return
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+    const eventPool = [...feedOfficialDbEvents, ...dbCommunityEvents, ...userCreatedEvents]
+    const isLongDeadEv = (ev: any) => {
+      let evStartMs = 0
+      if (ev?.expiresAt > 0) evStartMs = ev.expiresAt
+      else {
+        const parsed = parseEventDateTime(ev?.date_label || ev?.time || '')
+        if (parsed) evStartMs = parsed.getTime()
+      }
+      return evStartMs > 0 && evStartMs + SEVEN_DAYS_MS < Date.now()
+    }
+    const isChatLongDead = (chat: any) => {
+      const evId = chat?.eventRefId || chat?.communityEventId || chat?.hostEventId
+      const ev = evId
+        ? eventPool.find((e: any) => e.id === evId)
+        : (chat?.event ? eventPool.find((e: any) => e.title === chat.event) : null)
+      if (!ev) return false
+      return isLongDeadEv(ev)
+    }
     setNotifications(prev => {
       const next = prev.filter(n => {
         if (!['group_chat', 'match', 'member_joined', 'crew_accepted'].includes(n.type)) return true
-        if (typeof n.chatId === 'number') return chatList.some((c: any) => c.id === n.chatId)
-        if (!n.body) return true
-        return chatList.some((c: any) => c.event === n.body || c.name === n.body)
+        let chat: any = null
+        if (typeof n.chatId === 'number') chat = chatList.find((c: any) => c.id === n.chatId)
+        else if (n.body) chat = chatList.find((c: any) => c.event === n.body || c.name === n.body)
+        if (!chat) return false  // chat gone entirely → drop notif
+        if (isChatLongDead(chat)) return false  // event ended >7d ago → drop notif
+        return true
       })
       return next.length === prev.length ? prev : next
     })
-  }, [chatList])
+  }, [chatList, persistLoadedState, feedOfficialDbEvents, dbCommunityEvents, userCreatedEvents])
 
   const timeAgo = (ms: number) => {
     const s = Math.floor((Date.now() - ms) / 1000)
