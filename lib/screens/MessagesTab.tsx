@@ -718,7 +718,9 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                         const parsed = parseEventDateTime(linkedEv.date_label || linkedEv.time || '')
                         if (parsed) evStartMs = parsed.getTime()
                       }
-                      const evExpiresAt = evStartMs > 0 ? evStartMs + 24 * 3600 * 1000 : 0
+                      // Grace window post-event = 7 days (was 24h). Matches the
+                      // 7d cutoff used by visibleChats to drop long-dead chats.
+                      const evExpiresAt = evStartMs > 0 ? evStartMs + 7 * 24 * 3600 * 1000 : 0
                       const effectiveExpiry = evExpiresAt || chat.chatExpiresAt
                       if (!effectiveExpiry) return null
                       const hoursLeft = (effectiveExpiry - Date.now()) / 3600000

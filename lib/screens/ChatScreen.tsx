@@ -241,9 +241,18 @@ export function ChatScreen(props: any) {
             const chatEv = chatEvId ? [...userCreatedEvents, ...dbCommunityEvents].find((e: any) => e.id === chatEvId) : null
             const isExpired = chatEv?.expiresAt > 0 && chatEv.expiresAt < Date.now()
             if (!isExpired) return null
-            const expiresAt = openChat.chatExpiresAt || (chatEv?.expiresAt ? chatEv.expiresAt + 24 * 60 * 60 * 1000 : 0)
-            const hoursLeft = expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 3600000)) : 0
-            const expiryText = hoursLeft <= 0 ? 'This chat will be deleted soon.' : hoursLeft === 1 ? 'This event has ended. Chat deletes in less than 1 hour.' : `This event has ended. Chat deletes in ${hoursLeft}h.`
+            // Post-event grace: 7 days. Long enough for everyone to share photos
+            // and chat about how it went, then chat auto-deletes. Users can also
+            // long-press in the Chats list to leave manually before then.
+            const expiresAt = openChat.chatExpiresAt || (chatEv?.expiresAt ? chatEv.expiresAt + 7 * 24 * 60 * 60 * 1000 : 0)
+            const msLeft = expiresAt ? Math.max(0, expiresAt - Date.now()) : 0
+            const daysLeft = Math.ceil(msLeft / (24 * 3600 * 1000))
+            const hoursLeft = Math.ceil(msLeft / 3600000)
+            const expiryText =
+              msLeft <= 0 ? 'This chat will be deleted soon.'
+              : daysLeft > 1 ? `This event has ended. Chat deletes in ${daysLeft} days.`
+              : hoursLeft <= 1 ? 'This event has ended. Chat deletes in less than 1 hour.'
+              : `This event has ended. Chat deletes in ${hoursLeft}h.`
             return (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(100,116,139,0.1)', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' }}>
                 <Text style={{ fontSize: 14 }}>🗂️</Text>

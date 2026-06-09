@@ -4251,9 +4251,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       const isFresh = chatTime > 0 && Date.now() - chatTime < 10000
       if (isFresh) {
         if (newest.type === 'duo') {
-          addNotif({ type: 'match', emoji: '✨', color: '#EC4899', title: `You matched with ${newest.name}!`, body: newest.event || 'Check your chats' })
+          addNotif({ type: 'match', emoji: '✨', color: '#EC4899', title: `You matched with ${newest.name}!`, body: newest.event || 'Check your chats', chatId: typeof newest.id === 'number' ? newest.id : undefined })
         } else {
-          addNotif({ type: 'group_chat', emoji: '🎉', color: '#10B981', title: 'Group chat is live!', body: newest.event || 'Your crew is ready' })
+          addNotif({ type: 'group_chat', emoji: '🎉', color: '#10B981', title: 'Group chat is live!', body: newest.event || 'Your crew is ready', chatId: typeof newest.id === 'number' ? newest.id : undefined })
         }
       }
     }
@@ -7554,7 +7554,19 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 10 }}>
-                {(() => { const bellNotifs = notifications.filter(n => n.type !== 'new_message'); return (
+                {(() => {
+                // Filter stale chat-pointing notifications. If a notif references
+                // a chat (via chatId or by event-title body match) and that chat
+                // is no longer in chatList — the user left, was removed, or the
+                // chat got deleted — the notif is a dead pointer and shouldn't
+                // be shown. Otherwise tapping it would do nothing.
+                const isStaleChatNotif = (n: any) => {
+                  if (!['group_chat', 'match', 'member_joined', 'crew_accepted'].includes(n.type)) return false
+                  if (typeof n.chatId === 'number') return !chatList.some((c: any) => c.id === n.chatId)
+                  if (!n.body) return false
+                  return !chatList.some((c: any) => c.event === n.body || c.name === n.body)
+                }
+                const bellNotifs = notifications.filter(n => n.type !== 'new_message' && !isStaleChatNotif(n)); return (
                 bellNotifs.length === 0 ? (
                   <View style={{ alignItems: 'center', paddingVertical: 48 }}>
                     <Text style={{ fontSize: 42, marginBottom: 12 }}>🔔</Text>
