@@ -1096,15 +1096,72 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                           const lonePeople = realPartners.filter((p: any) => !crewMemberIds.has(p.id))
                           return (
                             <View style={{ gap: 8 }}>
-                              {joinable.length > 0 ? (
-                                <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.45)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
-                                  {joinable.length} {joinable.length === 1 ? 'crew is forming' : 'crews are forming'}
-                                </Text>
-                              ) : lonePeople.length === 0 ? (
+                              {/* Individuals shown FIRST — primary interaction is exploring
+                                  candidates ("here are the people, pick who you click with").
+                                  Ready crews come below as a quick-path alternative. */}
+                              {lonePeople.length === 0 && joinable.length === 0 && (
                                 <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6, fontStyle: 'italic' }}>
                                   No one's here yet — be the first.
                                 </Text>
-                              ) : null}
+                              )}
+                              {lonePeople.length > 0 && (
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.45)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                                  {lonePeople.length === 1 ? '1 person looking' : `${lonePeople.length} people looking`}
+                                </Text>
+                              )}
+                              {lonePeople.map((p: any) => {
+                                const invited = !!sentCrewInvites[`${ev.id}_${p.id}`]
+                                const sv = p.score
+                                const sColor = sv != null && sv >= 75 ? '#43E97B' : sv != null && sv >= 55 ? '#FBBF24' : '#A78BFA'
+                                const gm = p.groupMax
+                                const fmtLabel = gm === 2 ? 'Duo' : (gm != null && gm >= 6) ? 'Party' : 'Squad'
+                                const openP = () => {
+                                  setPreviewProfile({ ...p, flag: FLAG_MAP[p.langs?.[0]] || '🌍', langs: (p.langs || []).map((l: string) => FLAG_MAP[l] || l), aiScore: sv, aiReason: p.vibe || 'Real attendee' })
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                                }
+                                return (
+                                  <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={openP}
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    {p.photo ? (
+                                      <Image source={{ uri: p.photo }} style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: sColor + '50' }} />
+                                    ) : (
+                                      <LinearGradient colors={p.colors || ['#6366F1', '#818CF8']} style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.12)' }}>
+                                        <Text style={{ fontSize: 20 }}>{p.emoji || '🎵'}</Text>
+                                      </LinearGradient>
+                                    )}
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff', flexShrink: 1 }}>{p.name}</Text>
+                                        <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)' }}>
+                                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.3 }}>{fmtLabel}</Text>
+                                        </View>
+                                      </View>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                        <Sparkle size={10} color={sv != null ? sColor : 'rgba(255,255,255,0.4)'} weight="fill" />
+                                        <Text style={{ fontSize: 11, fontWeight: '700', color: sv != null ? sColor : 'rgba(255,255,255,0.4)' }}>{sv != null ? `${sv}% vibe match` : 'Matching…'}</Text>
+                                      </View>
+                                    </View>
+                                    <View style={{ gap: 10 }}>
+                                      <TouchableOpacity activeOpacity={0.85} onPress={openP} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', minWidth: 66 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.75)' }}>View</Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity activeOpacity={invited ? 1 : 0.85} disabled={invited}
+                                        onPress={() => { onInviteToMyCrew?.(ev, p); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium) }}
+                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, backgroundColor: invited ? 'rgba(67,233,123,0.18)' : '#43E97B', alignItems: 'center', minWidth: 66, flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
+                                        {invited ? <CheckCircle size={13} color="#43E97B" /> : <Zap size={13} color="#052e16" fill="#052e16" />}
+                                        <Text style={{ fontSize: 13, fontWeight: '900', color: invited ? '#43E97B' : '#052e16' }}>{invited ? 'Invited' : 'Invite'}</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                  </TouchableOpacity>
+                                )
+                              })}
+                              {joinable.length > 0 && (
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.45)', letterSpacing: 1, textTransform: 'uppercase', marginTop: lonePeople.length > 0 ? 10 : 0, marginBottom: 4 }}>
+                                  Or join {joinable.length === 1 ? 'an existing crew' : `one of ${joinable.length} crews`}
+                                </Text>
+                              )}
                               {joinable.map((crew: any) => {
                                 const scoreColor = crew.avgMatch >= 75 ? '#43E97B' : crew.avgMatch >= 55 ? '#FBBF24' : crew.avgMatch >= 35 ? '#A78BFA' : '#94A3B8'
                                 const openCrewPreview = () => setCrewPreviewState({ ev, crew })
@@ -1173,62 +1230,6 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                                       </TouchableOpacity>
                                     </View>
                                   </View>
-                                )
-                              })}
-                              {/* Individual people looking to join — invite them into your crew.
-                                  Mirrors the duo card so a squad/party-seeker can pull in a lone
-                                  attendee (any format) instead of only joining ready-made crews. */}
-                              {lonePeople.length > 0 && (
-                                <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.45)', letterSpacing: 1, textTransform: 'uppercase', marginTop: joinable.length > 0 ? 10 : 0, marginBottom: 4 }}>
-                                  {lonePeople.length === 1 ? '1 person looking' : `${lonePeople.length} people looking`}
-                                </Text>
-                              )}
-                              {lonePeople.map((p: any) => {
-                                const invited = !!sentCrewInvites[`${ev.id}_${p.id}`]
-                                const sv = p.score
-                                const sColor = sv != null && sv >= 75 ? '#43E97B' : sv != null && sv >= 55 ? '#FBBF24' : '#A78BFA'
-                                const gm = p.groupMax
-                                const fmtLabel = gm === 2 ? 'Duo' : (gm != null && gm >= 6) ? 'Party' : 'Squad'
-                                const openP = () => {
-                                  setPreviewProfile({ ...p, flag: FLAG_MAP[p.langs?.[0]] || '🌍', langs: (p.langs || []).map((l: string) => FLAG_MAP[l] || l), aiScore: sv, aiReason: p.vibe || 'Real attendee' })
-                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                                }
-                                return (
-                                  <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={openP}
-                                    style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    {p.photo ? (
-                                      <Image source={{ uri: p.photo }} style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 2, borderColor: sColor + '50' }} />
-                                    ) : (
-                                      <LinearGradient colors={p.colors || ['#6366F1', '#818CF8']} style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.12)' }}>
-                                        <Text style={{ fontSize: 20 }}>{p.emoji || '🎵'}</Text>
-                                      </LinearGradient>
-                                    )}
-                                    <View style={{ flex: 1, minWidth: 0 }}>
-                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: '#fff', flexShrink: 1 }}>{p.name}</Text>
-                                        <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99, backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)' }}>
-                                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#A78BFA', letterSpacing: 0.3 }}>{fmtLabel}</Text>
-                                        </View>
-                                      </View>
-                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                                        <Sparkle size={10} color={sv != null ? sColor : 'rgba(255,255,255,0.4)'} weight="fill" />
-                                        <Text style={{ fontSize: 11, fontWeight: '700', color: sv != null ? sColor : 'rgba(255,255,255,0.4)' }}>{sv != null ? `${sv}% vibe match` : 'Matching…'}</Text>
-                                      </View>
-                                    </View>
-                                    <View style={{ gap: 10 }}>
-                                      <TouchableOpacity activeOpacity={0.85} onPress={openP} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', minWidth: 66 }}>
-                                        <Text style={{ fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.75)' }}>View</Text>
-                                      </TouchableOpacity>
-                                      <TouchableOpacity activeOpacity={invited ? 1 : 0.85} disabled={invited}
-                                        onPress={() => { onInviteToMyCrew?.(ev, p); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium) }}
-                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                        style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, backgroundColor: invited ? 'rgba(67,233,123,0.18)' : '#43E97B', alignItems: 'center', minWidth: 66, flexDirection: 'row', justifyContent: 'center', gap: 5 }}>
-                                        {invited ? <CheckCircle size={13} color="#43E97B" /> : <Zap size={13} color="#052e16" fill="#052e16" />}
-                                        <Text style={{ fontSize: 13, fontWeight: '900', color: invited ? '#43E97B' : '#052e16' }}>{invited ? 'Invited' : 'Invite'}</Text>
-                                      </TouchableOpacity>
-                                    </View>
-                                  </TouchableOpacity>
                                 )
                               })}
                               {/* When no crews exist — designer primary CTA: dark glass body
