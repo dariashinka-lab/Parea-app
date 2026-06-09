@@ -4266,6 +4266,26 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     prevChatCountRef.current = chatList.length
   }, [chatList.length])
 
+  // Purge chat-pointing notifications whose target chat no longer exists in
+  // chatList — user left, was kicked, or the chat got deleted server-side.
+  // Without this the bell shows "1 new" but tapping it reveals an empty panel
+  // (or, if the notif is rendered, tapping it does nothing because the chat
+  // is gone). Removing from state keeps the badge count and panel in sync.
+  // Only runs after chat hydration window (chatNotifReadyRef) — otherwise a
+  // notif fires during the empty-chatList moment on first load.
+  useEffect(() => {
+    if (!chatNotifReadyRef.current) return
+    setNotifications(prev => {
+      const next = prev.filter(n => {
+        if (!['group_chat', 'match', 'member_joined', 'crew_accepted'].includes(n.type)) return true
+        if (typeof n.chatId === 'number') return chatList.some((c: any) => c.id === n.chatId)
+        if (!n.body) return true
+        return chatList.some((c: any) => c.event === n.body || c.name === n.body)
+      })
+      return next.length === prev.length ? prev : next
+    })
+  }, [chatList])
+
   const timeAgo = (ms: number) => {
     const s = Math.floor((Date.now() - ms) / 1000)
     if (s < 60) return 'just now'
@@ -7560,19 +7580,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 10 }}>
-                {(() => {
-                // Filter stale chat-pointing notifications. If a notif references
-                // a chat (via chatId or by event-title body match) and that chat
-                // is no longer in chatList — the user left, was removed, or the
-                // chat got deleted — the notif is a dead pointer and shouldn't
-                // be shown. Otherwise tapping it would do nothing.
-                const isStaleChatNotif = (n: any) => {
-                  if (!['group_chat', 'match', 'member_joined', 'crew_accepted'].includes(n.type)) return false
-                  if (typeof n.chatId === 'number') return !chatList.some((c: any) => c.id === n.chatId)
-                  if (!n.body) return false
-                  return !chatList.some((c: any) => c.event === n.body || c.name === n.body)
-                }
-                const bellNotifs = notifications.filter(n => n.type !== 'new_message' && !isStaleChatNotif(n)); return (
+                {(() => { const bellNotifs = notifications.filter(n => n.type !== 'new_message'); return (
                 bellNotifs.length === 0 ? (
                   <View style={{ alignItems: 'center', paddingVertical: 48 }}>
                     <Text style={{ fontSize: 42, marginBottom: 12 }}>🔔</Text>
