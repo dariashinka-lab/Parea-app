@@ -130,6 +130,33 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   const expiredHostedEvents = hostedEvents.filter(ev => isExpiredEv(ev))
   const expiredAllEvents = [...expiredHostedEvents, ...expiredJoinedEvents.filter(je => !expiredHostedEvents.some(he => he.id === je.id))]
 
+  // Hide events + chats whose event ended >7 days ago. DB cleanup runs
+  // server-side (cron) for the rows themselves; this is a client-side guard so
+  // stale data doesn't render even if the DB hasn't been pruned yet on this device.
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+  const isLongDeadEv = (ev: any) => {
+    let evStartMs = 0
+    if (ev?.expiresAt > 0) evStartMs = ev.expiresAt
+    else {
+      const parsed = parseEventDateTime(ev?.date_label || ev?.time || '')
+      if (parsed) evStartMs = parsed.getTime()
+    }
+    return evStartMs > 0 && evStartMs + SEVEN_DAYS_MS < now
+  }
+  const eventPool = [...allEvents, ...hostedEvents]
+  const isLongDeadChat = (chat: any) => {
+    const evId = chat.eventRefId || chat.communityEventId || chat.hostEventId
+    // Try to resolve the linked event. For duo chats event_id is NULL in DB,
+    // so fall back to a title match — same pattern as the Expiring badge below.
+    const ev = evId
+      ? eventPool.find((e: any) => e.id === evId)
+      : (chat.event ? eventPool.find((e: any) => e.title === chat.event) : null)
+    if (!ev) return false  // can't resolve → keep visible (don't drop blindly)
+    return isLongDeadEv(ev)
+  }
+  const visibleExpiredEvents = expiredAllEvents.filter((ev: any) => !isLongDeadEv(ev))
+  const visibleChats = chatList.filter(c => !isLongDeadChat(c))
+
   const FORMAT_CHIP: Record<string, { emoji: string; label: string; color: string }> = {
     '1+1':   { emoji: '👥', label: 'Duo',   color: '#f472b6' },
     'squad': { emoji: '🫂', label: 'Squad', color: '#818CF8' },
@@ -171,7 +198,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
           <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '500', marginTop: 8 }}>
             {subTab === 'going'
               ? `${myEvents.length + activeHostedEvents.length} upcoming`
-              : `${chatList.length} conversation${chatList.length !== 1 ? 's' : ''}`}
+              : `${visibleChats.length} conversation${visibleChats.length !== 1 ? 's' : ''}`}
           </Text>
         </View>
 
@@ -181,7 +208,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
             const isActive = subTab === id
             const label = id === 'going'
               ? `Plans${myEvents.length + activeHostedEvents.length > 0 ? ` · ${myEvents.length + activeHostedEvents.length}` : ''}`
-              : `Chats${chatList.length > 0 ? ` · ${chatList.length}` : ''}`
+              : `Chats${visibleChats.length > 0 ? ` · ${visibleChats.length}` : ''}`
             return (
               <TouchableOpacity key={id} activeOpacity={0.8}
                 onPress={() => { setSubTab(id); Haptics.selectionAsync(); if (id === 'going') onPlansOpen?.() }}
@@ -265,13 +292,13 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               <Text style={{ fontSize: 11, fontWeight: '800', color: PLANS_COLOR, letterSpacing: 1, textTransform: 'uppercase' }}>Attending</Text>
             </View>
           )}
-          {plansLoading && myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
+          {plansLoading && myEvents.length === 0 && activeHostedEvents.length === 0 && visibleExpiredEvents.length === 0 ? (
             // Still hydrating from DB — show a spinner so events don't flash in
             // after an empty "No plans yet" render on reload.
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
               <ActivityIndicator size="small" color="#818CF8" />
             </View>
-          ) : myEvents.length === 0 && activeHostedEvents.length === 0 && expiredAllEvents.length === 0 ? (
+          ) : myEvents.length === 0 && activeHostedEvents.length === 0 && visibleExpiredEvents.length === 0 ? (
             <View style={{ alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 }}>
               <LinearGradient colors={['#6366F1', '#818CF8']} style={{ width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                 <CalendarDays size={32} color="#fff" />
@@ -494,14 +521,15 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               )
             })
           )}
-          {/* Expired events — last, visually muted so they don't compete with upcoming plans */}
-          {expiredAllEvents.length > 0 && (
+          {/* Expired events — last, visually muted so they don't compete with upcoming plans.
+              Filtered to events that ended within the last 7 days; older ones disappear entirely. */}
+          {visibleExpiredEvents.length > 0 && (
             <View style={{ gap: 8, marginTop: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
                 <Clock size={12} color="#94A3B8" />
                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, textTransform: 'uppercase' }}>Expired</Text>
               </View>
-              {expiredAllEvents.map((ev: any) => {
+              {visibleExpiredEvents.map((ev: any) => {
                 const isHosted = expiredHostedEvents.some(he => he.id === ev.id)
                 const dateStr = ev.date_label || ev.time || ''
                 const expiredAt = ev.expiresAt || (parseEventDateTime(dateStr)?.getTime() ?? 0)
@@ -542,7 +570,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
       {/* Chats tab */}
       {subTab === 'messages' && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, gap: 10, paddingBottom: 32 }}>
-          {chatList.length === 0 && (
+          {visibleChats.length === 0 && (
             <View style={{ alignItems: 'center', paddingTop: 72, paddingHorizontal: 32 }}>
               <View style={{ width: 100, height: 100, marginBottom: 24, alignItems: 'center', justifyContent: 'center' }}>
                 <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, backgroundColor: '#EEF2FF' }} />
@@ -555,7 +583,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               </Text>
             </View>
           )}
-          {[...chatList].sort((a, b) => {
+          {[...visibleChats].sort((a, b) => {
             // Most-recent activity first. `time` is usually an ISO timestamp
             // (created_at / last message); fall back to chat id (higher = newer)
             // when it's a bare "HH:MM" string that can't be parsed.
