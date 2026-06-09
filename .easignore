@@ -1,0 +1,42 @@
+# When this file exists, EAS uses it instead of .gitignore to decide what to
+# upload to the build server. Mirrors .gitignore EXCEPT google-services.json
+# (which is git-ignored on purpose — contains the FCM client key — but EAS
+# needs it to build the APK with push notifications wired in).
+node_modules/
+
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+.metro-health-check*
+
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+.DS_Store
+*.pem
+
+.env
+.env*.local
+
+*.tsbuildinfo
+
+app-example
+
+/ios
+/android
+
+addevent.md
+chats.md
+
+.claude/
