@@ -244,7 +244,10 @@ export function ChatScreen(props: any) {
             // Post-event grace: 7 days. Long enough for everyone to share photos
             // and chat about how it went, then chat auto-deletes. Users can also
             // long-press in the Chats list to leave manually before then.
-            const expiresAt = openChat.chatExpiresAt || (chatEv?.expiresAt ? chatEv.expiresAt + 7 * 24 * 60 * 60 * 1000 : 0)
+            // Prefer event-based calculation — chatExpiresAt is stored at create
+            // time and may carry a stale 24h value from earlier builds, so use it
+            // only as a final fallback when we can't resolve the event.
+            const expiresAt = (chatEv?.expiresAt ? chatEv.expiresAt + 7 * 24 * 60 * 60 * 1000 : 0) || openChat.chatExpiresAt || 0
             const msLeft = expiresAt ? Math.max(0, expiresAt - Date.now()) : 0
             const daysLeft = Math.ceil(msLeft / (24 * 3600 * 1000))
             const hoursLeft = Math.ceil(msLeft / 3600000)

@@ -2819,7 +2819,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             // chat once its backing event drops out of the feed (e.g. scraper
             // stops returning a past official event), and it lingers forever.
             if (!cleared.chatExpiresAt) {
-              cleared.chatExpiresAt = Date.now() + 24 * 60 * 60 * 1000
+              cleared.chatExpiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000
             }
             if (!last) return cleared
             const previewText = last.from === 'me' ? `You: ${last.text}` : (last.senderName ? `${last.senderName}: ${last.text}` : last.text)
@@ -3131,11 +3131,11 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         const foundEv = dbCommunityEventsRef.current?.find((e: any) => e.id === chatData?.event_id) || feedOfficialDbEventsRef.current?.find((e: any) => e.id === chatData?.event_id)
         // Skip re-creating chat if event ended 24h+ ago. Realtime can replay
         // chat_members INSERTs on reconnect and resurrect chats for past events.
-        if (foundEv?.expiresAt > 0 && foundEv.expiresAt + 24 * 60 * 60 * 1000 < Date.now()) {
+        if (foundEv?.expiresAt > 0 && foundEv.expiresAt + 7 * 24 * 60 * 60 * 1000 < Date.now()) {
           console.log('[skip-resurrect-chat] event expired', chatData?.event_id, eventTitle)
           return
         }
-        const evChatExpiry = (foundEv?.expiresAt > 0 ? foundEv.expiresAt : Date.now()) + 24 * 60 * 60 * 1000
+        const evChatExpiry = (foundEv?.expiresAt > 0 ? foundEv.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000
         const newChat: any = isDuo ? {
           id: chatId, type: 'duo', eventRefId: effectiveEventId,
           name: partner?.name || 'Your crew',
@@ -3366,7 +3366,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           avatars: otherMembers.map((p: any) => p.photo).filter(Boolean),
           colors: otherMembers.map((p: any) => p.color), memberProfiles: otherMembers,
           lastMsg: chat.last_msg || '🎉 You\'re in the crew!',
-          time: new Date().toISOString(), isNew: existing?.isNew ?? true, chatExpiresAt: existing?.chatExpiresAt || (Date.now() + 24 * 60 * 60 * 1000),
+          time: new Date().toISOString(), isNew: existing?.isNew ?? true, chatExpiresAt: existing?.chatExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000),
         }
         if (isCommunityChat) newChat.communityEventId = chat.event_id
         setChatList(prev => {
@@ -3481,7 +3481,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             color: partner?.color || '#818CF8',
             photo: partner?.photos?.[0] || '',
             lastMsg: '🎉 Crew confirmed! Say hi',
-            time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+            time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
             event: inv.event_title, eventEmoji: '🎉',
             partnerProfile: partner,
           }, ...prev]
@@ -3716,7 +3716,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         // Skip recreating chat for events that ended 24h+ ago — otherwise every
         // app start would resurrect the chat for past events based on the still-
         // existing 'confirmed' join_requests in DB.
-        if (ev.expiresAt > 0 && ev.expiresAt + 24 * 60 * 60 * 1000 < Date.now()) return
+        if (ev.expiresAt > 0 && ev.expiresAt + 7 * 24 * 60 * 60 * 1000 < Date.now()) return
         setChatList(prev => {
           // Look up existing chat by any event-pointing key — realtime/joiner-confirm
           // creates chats with communityEventId/eventRefId, this poll uses hostEventId.
@@ -3800,7 +3800,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             // Anchor chat expiry to the event time, not "now + 24h". Otherwise
             // every fresh app start the local chat gets re-created with a new
             // 24h window — past events would never clean up locally.
-            const eventChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 24 * 60 * 60 * 1000
+            const eventChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000
             return [{
               // All three event-pointing keys so any other path's dedup matches.
               id: stableLocalId, type: 'group', hostEventId: evId, communityEventId: evId, eventRefId: evId,
@@ -5159,7 +5159,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               // Anchor chat expiry to event time, not now. Otherwise joining a
               // crew for an event in the past would give the chat a fresh 24h
               // window and cleanup would never catch it.
-              const evChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 24 * 60 * 60 * 1000
+              const evChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000
               // If chat already in list (e.g., user previously created their own and now
               // is joining a different one) — merge fresh data instead of skipping update.
               setChatList(prev => {
@@ -5218,7 +5218,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               setOfficialEventChatMap(prev => ({ ...prev, [ev.id]: newChat.id }))
               // Anchor chat expiry to event time so creating a crew for a past
               // event doesn't give it a fresh 24h window.
-              const newCrewChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 24 * 60 * 60 * 1000
+              const newCrewChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000
               setChatList(prev => prev.some(c => c.id === newChat.id) ? prev : [{
                 id: newChat.id, type: 'group', event: ev.title, eventEmoji: CATEGORY_EMOJI[ev.category] || '🎉',
                 eventRefId: ev.id, eventImage: ev.image_url || null,
@@ -5271,7 +5271,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 }
                 setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
                 setOfficialEventChatMap(prev => ({ ...prev, [ev.id]: chatId as number }))
-                const newCrewChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 24 * 60 * 60 * 1000
+                const newCrewChatExpiry = (ev.expiresAt && ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000
                 setChatList(prev => prev.some(c => c.id === chatId) ? prev : [{
                   id: chatId as number, type: 'group', event: ev.title, eventEmoji: CATEGORY_EMOJI[ev.category] || '🎉',
                   eventRefId: ev.id, eventImage: ev.image_url || null,
@@ -5396,7 +5396,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                               avatars: gmProfiles.map((p: any) => p.photo).filter(Boolean),
                               colors: gmProfiles.map((p: any) => p.color), memberProfiles: gmProfiles,
                               lastMsg: '🎉 You joined the crew!', time: new Date().toISOString(), isNew: true,
-                              chatExpiresAt: (ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 24 * 60 * 60 * 1000,
+                              chatExpiresAt: (ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000,
                             }
                             if (existing) return prev.map(c => c.id === mutualInvite.chat_id ? { ...c, ...entry } : c)
                             return [entry, ...prev]
@@ -5425,7 +5425,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       setChatList(prev => prev.some(c => c.id === chatData.id) ? prev : [{
                         id: chatData.id, type: 'duo', eventRefId: ev.id, name: partner.name || 'Your crew',
                         age: partner.age || '', color: partner.color || '#818CF8', photo: partner.photo || '',
-                        lastMsg: '🎉 Mutual match! Say hi 👋', time: new Date().toISOString(), isNew: true, chatExpiresAt: (ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 24 * 60 * 60 * 1000,
+                        lastMsg: '🎉 Mutual match! Say hi 👋', time: new Date().toISOString(), isNew: true, chatExpiresAt: (ev.expiresAt > 0 ? ev.expiresAt : Date.now()) + 7 * 24 * 60 * 60 * 1000,
                         event: ev.title, eventEmoji: '🎉', partnerProfile: partner,
                       }, ...prev])
                       setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
@@ -5471,7 +5471,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       id: existingChatId, type: 'group', event: ev.title, eventEmoji: CATEGORY_EMOJI[ev.category] || '🎉',
                       members: (members || []).length, avatars: otherMembers.map((p: any) => p.photo).filter(Boolean),
                       colors: otherMembers.map((p: any) => p.color), memberProfiles: otherMembers,
-                      lastMsg: '🎉 Party crew chat! Say hi 👋', time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                      lastMsg: '🎉 Party crew chat! Say hi 👋', time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
                     }, ...prev])
                     setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
                     setOfficialEventChatMap(prev => ({ ...prev, [ev.id]: existingChatId as number }))
@@ -5610,7 +5610,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 colors: chatMembers.map((p: any) => p.color),
                 memberProfiles: chatMembers,
                 lastMsg: '🎉 Group chat created! Say hi',
-                time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
                 communityEventId: ev.id,
               } : {
                 id: localId, type: 'duo',
@@ -5619,7 +5619,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 transport: partners[0]?.transport || 'meet',
                 color: partners[0]?.color || '#818CF8',
                 photo: '', lastMsg: '👋 You matched! Say hello',
-                time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
                 event: ev.title, eventEmoji: CATEGORY_EMOJI[ev.category] || '🎉',
                 partnerProfile: partners[0] || null,
                 communityEventId: ev.id,
@@ -5649,7 +5649,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   members: preview.members.length + 1,
                   avatars: memberProfiles.map((p: any) => p.photo).filter(Boolean),
                   colors: memberProfiles.map((p: any) => p.color), memberProfiles,
-                  lastMsg: '🎉 You joined the crew!', time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                  lastMsg: '🎉 You joined the crew!', time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
                 }, ...prev])
                 setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
                 setCrewPreviewMap(prev => ({ ...prev, [ev.id]: null }))
@@ -5677,7 +5677,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   eventRefId: ev.id, eventImage: ev.image_url || null,
                   members: (members || []).length, avatars: memberProfiles.map((p: any) => p.photo).filter(Boolean),
                   colors: memberProfiles.map((p: any) => p.color), memberProfiles,
-                  lastMsg: '⏳ Waiting for crew to join...', time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                  lastMsg: '⏳ Waiting for crew to join...', time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
                 }, ...prev])
                 setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
                 setCrewPreviewMap(prev => ({ ...prev, [ev.id]: null }))
@@ -5764,7 +5764,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   })
                   // eventImage + accurate expiry are backfilled by the chatList
                   // effects (officialEndById / event image map) — safe to default here.
-                  const grpExpiry = Date.now() + 24 * 60 * 60 * 1000
+                  const grpExpiry = Date.now() + 7 * 24 * 60 * 60 * 1000
                   setChatList(prev => {
                     const existing = prev.find(c => c.id === inviteChatId)
                     const entry = {
@@ -5817,7 +5817,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 color: inviter.color || '#818CF8',
                 photo: inviter.photos?.[0] || '',
                 lastMsg: '🎉 Crew confirmed! Say hi',
-                time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+                time: new Date().toISOString(), isNew: true, chatExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
                 event: invite.event_title, eventEmoji: '🎉',
                 partnerProfile: inviter,
               }
