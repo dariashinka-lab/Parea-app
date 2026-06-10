@@ -2450,7 +2450,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       // auto-cleanup deletes them locally but this backfill re-adds them from
       // DB on the next login, so they appear permanent. Parse the community
       // event time and drop+delete anything past its 24h grace window.
-      const EXPIRE_AFTER = 24 * 60 * 60 * 1000
+      const EXPIRE_AFTER = 7 * 24 * 60 * 60 * 1000
       const nowMs = Date.now()
       // Resolve a chat's event end-time (ms): community group chats from
       // community_events.time, duo/official chats from official_events.date_label.
@@ -4172,7 +4172,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
     if (!persistLoadedState) return
     const check = () => {
       const now = Date.now()
-      const EXPIRE_AFTER = 24 * 60 * 60 * 1000 // 24 hours
+      const EXPIRE_AFTER = 7 * 24 * 60 * 60 * 1000 // 24 hours
       setUserCreatedEvents(prev => {
         const expired = prev.filter(ev => ev.expiresAt > 0 && now > ev.expiresAt + EXPIRE_AFTER)
         if (expired.length === 0) return prev
