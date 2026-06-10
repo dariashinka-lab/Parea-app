@@ -343,9 +343,10 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               // from event_attendees, which looked like a fake "5 in your crew"
               // strip even before the user joined a chat. Use joinedCrew.members
               // (DB-driven chat membership) when available; otherwise empty.
+              // Keep the full list — render caps at 3 avatars and shows '+N' for
+              // the rest, so we need an accurate total here.
               const crewProfiles  = (joinedCrew?.members || [])
                 .filter((m: any) => m.id !== userDbId && !passedIdsPlans.has(m.id))
-                .slice(0, cap - 1)
 
               // Smart status badge
               const isConfirmed = joinedEvents[ev.id] === 'confirmed'
@@ -467,16 +468,31 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                         </View>
                       ) : (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                          <View style={{ flexDirection: 'row' }}>
-                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#6366F1', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
-                              <Text style={{ fontSize: 12 }}>😊</Text>
-                            </View>
-                            {crewProfiles.map((p, i) => (
-                              <View key={i} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: p.color, borderWidth: 2, borderColor: '#fff', marginLeft: -8, alignItems: 'center', justifyContent: 'center', zIndex: 9 - i }}>
-                                <Text style={{ fontSize: 11 }}>{p.emoji}</Text>
+                          {/* Show me + up to 3 crew avatars, then a '+N' pill if there
+                              are more. Otherwise a party crew of 20 produced a 20-avatar
+                              strip that pushed everything else off-screen. */}
+                          {(() => {
+                            const MAX_AVATARS = 3
+                            const shown = crewProfiles.slice(0, MAX_AVATARS)
+                            const extra = Math.max(0, crewProfiles.length - shown.length)
+                            return (
+                              <View style={{ flexDirection: 'row' }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#6366F1', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                                  <Text style={{ fontSize: 12 }}>😊</Text>
+                                </View>
+                                {shown.map((p, i) => (
+                                  <View key={i} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: p.color, borderWidth: 2, borderColor: '#fff', marginLeft: -8, alignItems: 'center', justifyContent: 'center', zIndex: 9 - i }}>
+                                    <Text style={{ fontSize: 11 }}>{p.emoji}</Text>
+                                  </View>
+                                ))}
+                                {extra > 0 && (
+                                  <View style={{ height: 28, borderRadius: 14, backgroundColor: '#E0E7FF', borderWidth: 2, borderColor: '#fff', marginLeft: -8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, zIndex: 0 }}>
+                                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#4338CA' }}>+{extra}</Text>
+                                  </View>
+                                )}
                               </View>
-                            ))}
-                          </View>
+                            )
+                          })()}
                           <Text numberOfLines={1} style={{ fontSize: 12, color: '#64748B', fontWeight: '600', flexShrink: 1 }}>
                             {/* Show crew members from chat. If user isn't in any crew yet,
                                 say so explicitly instead of misleading "1/5 in crew". */}
