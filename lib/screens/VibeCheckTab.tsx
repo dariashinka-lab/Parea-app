@@ -421,7 +421,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                         </View>
                       </View>
                       <TouchableOpacity
-                        onPress={() => onGoToMessages?.()}
+                        onPress={() => onGoToMessages?.(ev)}
                         activeOpacity={0.85}
                         style={{ borderRadius: 99, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: '#43E97B', shadowColor: '#43E97B', shadowOpacity: 0.4, shadowRadius: 14, elevation: 6 }}>
                         <MessageCircle size={16} color="#052e16" />
@@ -437,7 +437,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                       </View>
                       <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: '600' }}>{slotsLeft} spot{slotsLeft !== 1 ? 's' : ''} left</Text>
                       {(hostConfirmedMembers[ev.id] || []).length > 0 && (
-                        <TouchableOpacity onPress={() => onGoToMessages?.()} style={{ marginLeft: 'auto' as any }}>
+                        <TouchableOpacity onPress={() => onGoToMessages?.(ev)} style={{ marginLeft: 'auto' as any }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: '#818CF8' }}>Open chat →</Text>
                         </TouchableOpacity>
                       )}
@@ -703,7 +703,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                       return (
                         <TouchableOpacity
                           activeOpacity={0.85}
-                          onPress={() => onGoToMessages?.()}
+                          onPress={() => onGoToMessages?.(ev)}
                           style={{ borderRadius: 99, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: '#43E97B', shadowColor: '#43E97B', shadowOpacity: 0.4, shadowRadius: 14, elevation: 6 }}>
                           <MessageCircle size={16} color="#052e16" />
                           <Text style={{ fontSize: 15, fontWeight: '900', color: '#052e16' }}>Open Chat</Text>

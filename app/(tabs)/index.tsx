@@ -6111,7 +6111,24 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   .then(({ error }) => { if (error) console.warn('pass→reject join_request error:', error.message) })
               }
             }}
-            onGoToMessages={() => {
+            onGoToMessages={(ev?: any) => {
+              // If a specific event is passed (Open Chat from a Vibe card), find
+              // the matching chat in the list and open it directly. Otherwise just
+              // switch to the Chats subtab — same behavior as before.
+              if (ev) {
+                const chat = chatList.find((c: any) =>
+                  (c.eventRefId === ev.id) ||
+                  (c.communityEventId === ev.id) ||
+                  (c.hostEventId === ev.id) ||
+                  (c.event === ev.title)
+                )
+                if (chat) {
+                  setOpenChat(chat)
+                  setChatList(prev => prev.map(c => c.id === chat.id ? { ...c, isNew: false } : c))
+                  const nowMs = Date.now()
+                  setLastReadAtMap(prev => ({ ...prev, [chat.id]: nowMs }))
+                }
+              }
               setMessagesInitialSubTab('messages')
               setActiveTab('messages')
             }}
