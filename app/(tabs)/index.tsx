@@ -2515,7 +2515,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           }
         })
       // Delete events that are long over from DB so they stop coming back.
+      // Also drop them from local chatList — otherwise the chat lingers in
+      // the user's list with no DB backing, and any new message INSERT fails
+      // with a foreign-key error (the zombie-Pot bug we just hit).
       if (expiredToDelete.length > 0) {
+        const expiredSet = new Set(expiredToDelete)
+        setChatList(prev => prev.filter(c => !expiredSet.has(c.id)))
         ;(async () => {
           for (const chatId of expiredToDelete) {
             await supabase.from('chats').delete().eq('id', chatId)
