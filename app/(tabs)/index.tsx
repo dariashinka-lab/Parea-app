@@ -2930,7 +2930,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       // entries created a race where polling fired before seen-keys loaded.
       seenNotifKeys: [...seenNotifKeysRef.current],
     }))
-  }, [joinedEvents, userEventFormat, userEventTransport, userCreatedEvents, pendingJoinRequests, approvedJoiners, passedRequests, chatList, chatMessages, sentCrewInvites, cancelledEventIds, officialEventChatMap, lastReadAtMap, notifications, seenNewEventIds])
+  }, [joinedEvents, userEventFormat, userEventTransport, userCreatedEvents, pendingJoinRequests, approvedJoiners, passedRequests, chatList, chatMessages, sentCrewInvites, cancelledEventIds, officialEventChatMap, lastReadAtMap, notifications, seenNewEventIds, persistLoadedState])
 
   // ── Cleanup stale event_attendees rows once after persist loaded ─────────
   // Gated on plansHydrated: the joinedEvents backfill from DB (which sets
