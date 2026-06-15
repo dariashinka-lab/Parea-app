@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import {
-  ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform,
+  ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Platform,
   ScrollView, Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
@@ -10,68 +10,42 @@ import MaskedView from '@react-native-masked-view/masked-view'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Svg, { Path } from 'react-native-svg'
 import * as WebBrowser from 'expo-web-browser'
-import { CaretDown, CaretLeft, CheckCircle as PhCheckCircle } from '../phosphor-icons'
+import { CaretLeft, CheckCircle as PhCheckCircle } from '../phosphor-icons'
 import { supabase } from '../supabase'
-import { COUNTRIES } from '../feed-constants'
 import { s } from '../feed-styles'
 
 const { height: H } = Dimensions.get('window')
 
-function formatLocal(digits: string, groups: number[]) {
-  let result = ''; let pos = 0
-  for (const g of groups) {
-    if (pos >= digits.length) break
-    if (pos > 0) result += ' '
-    result += digits.slice(pos, pos + g)
-    pos += g
-  }
-  return result
-}
-
+// Phone sign-up removed for v1 release — no Twilio configured, the path
+// would dead-end. Email + Google + Apple OAuth cover the user base on
+// Cyprus. Restore phone (state + tab toggle + country picker modal) when
+// Twilio is set up; the OTPScreen still handles 'phone' as a method.
 export function RegistrationScreen({ onBack, onSendOtp, onGoogleSignIn, onAppleSignIn }: {
   onBack: () => void
   onSendOtp: (method: 'email' | 'phone', credential: string) => void
   onGoogleSignIn?: () => void
   onAppleSignIn?: () => void
 }) {
-  const [tab, setTab] = useState<'email' | 'phone'>('email')
   const [email, setEmail] = useState('')
-  const [localPhone, setLocalPhone] = useState('')
-  const [country, setCountry] = useState(COUNTRIES[0])
-  const [countryModal, setCountryModal] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
   const [agreed, setAgreed] = useState(false)
   const [showAgreementWarning, setShowAgreementWarning] = useState(false)
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())
-  const isPhoneValid = localPhone.replace(/\D/g, '').length >= country.digits
-  const isCredentialValid = tab === 'email' ? isEmailValid : isPhoneValid
-  const isValid = isCredentialValid && agreed
-
-  const handlePhoneChange = (val: string) => {
-    const digits = val.replace(/\D/g, '').slice(0, country.digits)
-    setLocalPhone(formatLocal(digits, country.groups))
-  }
+  const isValid = isEmailValid && agreed
 
   const handleContinue = async () => {
     if (isChecking) return
-    if (isCredentialValid && !agreed) {
+    if (isEmailValid && !agreed) {
       setShowAgreementWarning(true)
       return
     }
     if (!isValid) return
     setIsChecking(true)
     try {
-      if (tab === 'email') {
-        const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } })
-        if (error) { Alert.alert('Error', error.message); setIsChecking(false); return }
-        onSendOtp('email', email.trim())
-      } else {
-        const fullPhone = `${country.code}${localPhone.replace(/\D/g, '')}`
-        const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone })
-        if (error) { Alert.alert('Error', error.message + '\n\nPhone OTP requires Twilio setup in Supabase dashboard.'); setIsChecking(false); return }
-        onSendOtp('phone', fullPhone)
-      }
+      const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } })
+      if (error) { Alert.alert('Error', error.message); setIsChecking(false); return }
+      onSendOtp('email', email.trim())
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Something went wrong')
       setIsChecking(false)
@@ -162,76 +136,23 @@ export function RegistrationScreen({ onBack, onSendOtp, onGoogleSignIn, onAppleS
               {/* Divider */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(139,92,246,0.12)' }} />
-                <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Outfit-Regular' }}>or use email / phone</Text>
+                <Text style={{ fontSize: 12, color: '#9CA3AF', fontFamily: 'Outfit-Regular' }}>or sign up with email</Text>
                 <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(139,92,246,0.12)' }} />
               </View>
 
-              {/* Tab toggle */}
-              <View style={{ flexDirection: 'row', backgroundColor: '#F3F0FF', borderRadius: 14, padding: 4, marginBottom: 14 }}>
-                {(['email', 'phone'] as const).map(t => (
-                  <TouchableOpacity key={t} onPress={() => setTab(t)}
-                    style={{ flex: 1, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: tab === t ? '#fff' : 'transparent',
-                      shadowColor: '#000', shadowOpacity: tab === t ? 0.05 : 0, shadowRadius: 5, elevation: tab === t ? 1 : 0 }}>
-                    <Text style={{ fontSize: 14, fontFamily: tab === t ? 'Outfit-SemiBold' : 'Outfit-Regular', color: tab === t ? '#111827' : '#9CA3AF' }}>
-                      {t === 'email' ? 'Email' : 'Phone'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              {/* Email input */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
+                borderRadius: 16, borderWidth: 1, borderColor: 'rgba(139,92,246,0.15)',
+                paddingHorizontal: 16, height: 56, marginBottom: 4,
+                shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}>
+                <Feather name="mail" size={17} color="#9CA3AF" style={{ marginRight: 10 }} />
+                <TextInput
+                  style={{ flex: 1, fontSize: 15, color: '#111827', fontFamily: 'Outfit-Regular' }}
+                  value={email} onChangeText={t => setEmail(t.replace(/\s/g, ''))}
+                  placeholder="your@email.com" placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                {isEmailValid && <PhCheckCircle size={20} color="#22c55e" weight="duotone" />}
               </View>
-
-              {/* Input */}
-              {tab === 'email' ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-                  borderRadius: 16, borderWidth: 1, borderColor: 'rgba(139,92,246,0.15)',
-                  paddingHorizontal: 16, height: 56, marginBottom: 4,
-                  shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}>
-                  <Feather name="mail" size={17} color="#9CA3AF" style={{ marginRight: 10 }} />
-                  <TextInput
-                    style={{ flex: 1, fontSize: 15, color: '#111827', fontFamily: 'Outfit-Regular' }}
-                    value={email} onChangeText={t => setEmail(t.replace(/\s/g, ''))}
-                    placeholder="your@email.com" placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
-                  {isEmailValid && <PhCheckCircle size={20} color="#22c55e" weight="duotone" />}
-                </View>
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-                  borderRadius: 16, borderWidth: 1, borderColor: 'rgba(139,92,246,0.15)',
-                  paddingHorizontal: 16, height: 56, marginBottom: 4,
-                  shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 }}>
-                  <TouchableOpacity onPress={() => setCountryModal(true)} style={s.countryBtn}>
-                    <Text style={{ fontSize: 20 }}>{country.flag}</Text>
-                    <Text style={[s.countryCode, { fontFamily: 'Outfit-Medium' }]}>{country.code}</Text>
-                    <CaretDown size={12} color="#9CA3AF" weight="bold" />
-                  </TouchableOpacity>
-                  <View style={s.countryDivider} />
-                  <TextInput
-                    style={{ flex: 1, fontSize: 15, color: '#111827', fontFamily: 'Outfit-Regular' }}
-                    value={localPhone} onChangeText={handlePhoneChange}
-                    placeholder="99 123 456" placeholderTextColor="#9CA3AF" keyboardType="phone-pad" />
-                  {isPhoneValid && <PhCheckCircle size={20} color="#22c55e" weight="duotone" />}
-                </View>
-              )}
-
-              {/* Country picker modal */}
-              <Modal visible={countryModal} transparent animationType="slide" onRequestClose={() => setCountryModal(false)}>
-                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} activeOpacity={1} onPress={() => setCountryModal(false)} />
-                <View style={s.countryModal}>
-                  <View style={s.countryModalHandle} />
-                  <Text style={[s.countryModalTitle, { fontFamily: 'ClashDisplay-Semibold' }]}>Select country</Text>
-                  <ScrollView>
-                    {COUNTRIES.map(c => (
-                      <TouchableOpacity key={c.code + c.name} style={[s.countryRow, country.name === c.name && { backgroundColor: 'rgba(139,92,246,0.07)' }]}
-                        onPress={() => { setCountry(c); setLocalPhone(''); setCountryModal(false) }}>
-                        <Text style={{ fontSize: 24 }}>{c.flag}</Text>
-                        <Text style={[s.countryRowName, { fontFamily: 'Outfit-Medium' }]}>{c.name}</Text>
-                        <Text style={[s.countryRowCode, { fontFamily: 'Outfit-Regular' }]}>{c.code}</Text>
-                        {country.name === c.name && <PhCheckCircle size={18} color="#8B5CF6" weight="duotone" />}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </Modal>
 
               {/* Continue */}
               <TouchableOpacity onPress={handleContinue} disabled={isChecking} activeOpacity={0.88}
