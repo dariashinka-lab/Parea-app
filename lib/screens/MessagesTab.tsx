@@ -69,7 +69,7 @@ function EventThumb({ uri, emoji, colors }: { uri: string; emoji?: string; color
   )
 }
 
-export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser, plansLoading = false, userDbId, boostedEvents = {}, onBoostEvent }: {
+export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser, plansLoading = false, userDbId, boostedEvents = {}, freeBoostsLeft = 0, onBoostEvent }: {
   chatList: any[]; onOpenChat: (c: any) => void; onLeaveChat?: (id: number, addSystemMsg?: boolean) => void;
   plansLoading?: boolean;
   joinedEvents?: Record<number, string>; userEventFormat?: Record<number, string>; userEventTransport?: Record<number, string>; allEvents?: any[]; onEventDetail?: (ev: any) => void;
@@ -80,6 +80,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   onBlockUser?: (profile: any) => void; onReportUser?: (profile: any) => void;
   userDbId?: string;
   boostedEvents?: Record<number, number>;
+  freeBoostsLeft?: number;
   onBoostEvent?: (ev: any) => void;
 }) {
   const [subTab, setSubTab] = useState<'going' | 'messages'>(initialSubTab || 'going')
@@ -307,7 +308,9 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onBoostEvent?.(ev) }}
                         style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, borderRadius: 12, backgroundColor: 'rgba(139,92,246,0.06)', borderWidth: 1, borderColor: 'rgba(139,92,246,0.28)' }}>
                         <BoostIcon size={14} color="#8B5CF6" />
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#8B5CF6' }}>Boost to top — free during launch</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#8B5CF6' }}>
+                          {freeBoostsLeft > 0 ? 'Boost to top — first one free' : 'Boost to top'}
+                        </Text>
                       </TouchableOpacity>
                     )}
                   </View>
