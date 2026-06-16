@@ -1028,14 +1028,15 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: '#1E1B4B', flex: 1 }} numberOfLines={1}>{ev.title}</Text>
                         {/* FEATURED — community event the host has paid to boost.
-                            Sits at the front of the title row so it pops first. */}
+                            Violet→pink gradient (premium feel, distinct from the
+                            orange POPULAR sticker and from Tinder/Bumble flame). */}
                         {(() => {
                           const exp = boostedEvents?.[ev.id]
                           if (!exp || exp <= Date.now()) return null
                           return (
-                            <LinearGradient colors={['#FB923C', '#EF4444']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                            <LinearGradient colors={['#8B5CF6', '#EC4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                               style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99 }}>
-                              <Fire size={9} color="#fff" weight="fill" />
+                              <Sparkle size={9} color="#fff" weight="fill" />
                               <Text style={{ fontSize: 10, fontWeight: '900', color: '#fff', letterSpacing: 0.3 }}>FEATURED</Text>
                             </LinearGradient>
                           )
