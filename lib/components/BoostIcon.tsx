@@ -8,9 +8,11 @@ import Svg, { Path } from 'react-native-svg'
 export function BoostIcon({ size = 24, color = '#fff' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M5 14L5.75 16.25L8 17L5.75 17.75L5 20L4.25 17.75L2 17L4.25 16.25L5 14Z" fill={color} />
-      <Path d="M11.5 8L12.5 11L15.5 12L12.5 13L11.5 16L10.5 13L7.5 12L10.5 11L11.5 8Z" fill={color} />
-      <Path d="M18 2L19.5 6.5L24 8L19.5 9.5L18 14L16.5 9.5L12 8L16.5 6.5L18 2Z" fill={color} />
+      {/* Centers: (5,19) → (12,12) → (19,5) — 7 units apart diagonally
+          (even spacing). Sizes 6/8/10 — clean step-up. */}
+      <Path d="M5 16L6 18L8 19L6 20L5 22L4 20L2 19L4 18Z" fill={color} />
+      <Path d="M12 8L13 11L16 12L13 13L12 16L11 13L8 12L11 11Z" fill={color} />
+      <Path d="M19 0L20 4L24 5L20 6L19 10L18 6L14 5L18 4Z" fill={color} />
     </Svg>
   )
 }

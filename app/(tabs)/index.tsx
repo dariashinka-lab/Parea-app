@@ -7227,10 +7227,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                         setCreateLangs([]); setCreateVibe(null); setCreateCustom(''); setCreateImage(null); setCreateVisibility('public');
                         setCalViewYear(new Date().getFullYear()); setCalViewMonth(new Date().getMonth());
                         showToast('Others can find it in the feed now', 'Plan published', '✓')
-                        // Soft-sell Boost right after create: most-motivated moment to
-                        // pitch (host just published, wants people). Small delay so the
-                        // toast lands first and the create-modal close animation finishes.
-                        setTimeout(() => { setBoostSheetEvent(newEvent) }, 700)
+                        // Soft-sell Boost right after create — but only if the host
+                        // still has their free Boost left. If they've already used it,
+                        // popping the paywall every time they make a new event just
+                        // nags. They can still tap "Boost to top" on Plans card later.
+                        if (boostsUsed < FREE_BOOST_ALLOWANCE) {
+                          setTimeout(() => { setBoostSheetEvent(newEvent) }, 700)
+                        }
                         } catch (e) {
                           console.warn('create event failed:', e)
                           showToast('Please try again', 'Could not publish', '⚠️')

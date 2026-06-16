@@ -98,7 +98,7 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
                   </Text>
                   <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, backgroundColor: 'rgba(67,233,123,0.15)', borderWidth: 1, borderColor: 'rgba(67,233,123,0.35)', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Sparkle size={10} color="#43E97B" weight="fill" />
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#43E97B', letterSpacing: 0.3 }}>YOUR FIRST BOOST FREE</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#43E97B', letterSpacing: 0.3 }}>1 FREE BOOST ON US</Text>
                   </View>
                 </>
               ) : (
@@ -121,7 +121,7 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
 
             <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 12, lineHeight: 16 }}>
               {isFree
-                ? 'Your first Boost is free — try it, see the lift.\n48 hours of featured placement. No subscription, no auto-renewal.'
+                ? 'One free Boost per account — try it on this event, see the lift.\n48 hours of featured placement. No subscription, no auto-renewal.'
                 : "You've used your free Boost.\nPaid boosts go live in the next release — we'll let you know."}
             </Text>
           </View>
