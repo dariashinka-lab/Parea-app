@@ -636,13 +636,14 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
       {/* Chats tab */}
       {subTab === 'messages' && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, gap: 10, paddingBottom: 32 }}>
-          {/* Wait for the events backfill to finish before rendering chats —
-              otherwise the event-based cleanup pass running a moment later
-              prunes 'long-dead' entries and the user sees a couple of chats
-              flash in then disappear (Daria's report). plansLoading covers
-              the exact window we need: from login until hydrate + initial
-              joinedEvents backfill are both complete. */}
-          {plansLoading ? (
+          {/* Wait until the events pool is non-empty before rendering chats.
+              plansLoading alone isn't strict enough — it can flip false
+              before the cleanup pass that resolves chats against events has
+              had a chance to run, and the user sees an orphan flash in then
+              disappear. Combine both: spin until events have actually
+              landed in props. If the user genuinely has zero events (brand
+              new account), the empty-state below renders. */}
+          {(plansLoading || (allEvents.length === 0 && hostedEvents.length === 0)) ? (
             <View style={{ alignItems: 'center', paddingTop: 80 }}>
               <ActivityIndicator size="small" color="#818CF8" />
             </View>
@@ -659,7 +660,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               </Text>
             </View>
           )}
-          {!plansLoading && [...visibleChats].sort((a, b) => {
+          {!(plansLoading || (allEvents.length === 0 && hostedEvents.length === 0)) && [...visibleChats].sort((a, b) => {
             // Most-recent activity first. `time` is usually an ISO timestamp
             // (created_at / last message); fall back to chat id (higher = newer)
             // when it's a bare "HH:MM" string that can't be parsed.
