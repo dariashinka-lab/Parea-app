@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react'
-import { Animated, Modal, Pressable, Text, TouchableOpacity, View } from 'react-native'
+import { Animated, Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from 'react-native-svg'
 import * as Haptics from 'expo-haptics'
-import { ArrowFatUp, ArrowUp, Star, UsersThree, Shield, Sparkle, X } from '../phosphor-icons'
+import { ArrowUp, Star, UsersThree, Shield, Sparkle, X } from '../phosphor-icons'
 
 // Boost paywall sheet — matches Daria's mockup exactly:
 // - Hero: filled violet→pink arrow with glow (no 3D pedestal — flat with shadow)
@@ -44,29 +45,32 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
         <Pressable style={{ flex: 1 }} onPress={onClose} />
         <Animated.View style={{
           position: 'absolute', left: 0, right: 0, bottom: 0,
+          maxHeight: '92%',
           transform: [{ translateY }],
           backgroundColor: '#0F0C1F',
           borderTopLeftRadius: 28, borderTopRightRadius: 28,
-          paddingBottom: Math.max(28, insets.bottom + 20),
+          paddingTop: 10,
+          paddingBottom: Math.max(36, insets.bottom + 24),
           shadowColor: '#A78BFA', shadowOpacity: 0.5, shadowRadius: 30, shadowOffset: { width: 0, height: -8 },
         }}>
           {/* Drag handle */}
-          <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.18)', marginTop: 10 }} />
+          <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.18)' }} />
 
           {/* Close X */}
           <TouchableOpacity onPress={onClose} hitSlop={12}
-            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+            style={{ position: 'absolute', top: 18, right: 18, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
             <X size={16} color="rgba(255,255,255,0.7)" />
           </TouchableOpacity>
 
-          {/* Hero: big filled arrow on a soft glow pad */}
-          <View style={{ alignItems: 'center', paddingTop: 28 }}>
-            <View style={{ width: 120, height: 110, alignItems: 'center', justifyContent: 'center' }}>
-              {/* Soft glow pad behind the arrow — gives the 'rising from pedestal' feel
-                  without needing a 3D illustration. Two stacked rings, fading out. */}
-              <View style={{ position: 'absolute', bottom: 4, width: 88, height: 14, borderRadius: 50, backgroundColor: 'rgba(167,139,250,0.18)' }} />
-              <View style={{ position: 'absolute', bottom: 12, width: 64, height: 10, borderRadius: 50, backgroundColor: 'rgba(167,139,250,0.28)' }} />
-              <MaskedArrow />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+          {/* Hero: big gradient arrow with soft pedestal-glow underneath */}
+          <View style={{ alignItems: 'center', paddingTop: 22 }}>
+            <View style={{ width: 140, height: 130, alignItems: 'center', justifyContent: 'flex-end' }}>
+              {/* Soft glow pad behind the arrow — gives the 'rising from pedestal'
+                  feel without needing a 3D illustration. Two stacked ellipses. */}
+              <View style={{ position: 'absolute', bottom: 8, width: 100, height: 16, borderRadius: 50, backgroundColor: 'rgba(167,139,250,0.16)' }} />
+              <View style={{ position: 'absolute', bottom: 18, width: 76, height: 12, borderRadius: 50, backgroundColor: 'rgba(167,139,250,0.30)' }} />
+              <BoostArrowSvg size={94} />
             </View>
           </View>
 
@@ -84,8 +88,8 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
           <View style={{ paddingHorizontal: 24, paddingTop: 24, gap: 12 }}>
             {[
               { Icon: ArrowUp, title: 'Top of the feed for 48 hours', sub: 'Your plan appears above regular community plans.' },
-              { Icon: Star, title: 'Featured badge', sub: 'A premium badge highlights your plan and builds trust.' },
-              { Icon: UsersThree, title: 'More people can discover it', sub: 'Your plan gets more attention from people browsing nearby plans.' },
+              { Icon: Star, title: 'Featured badge', sub: 'A premium badge highlights your plan in the feed.' },
+              { Icon: UsersThree, title: 'More people can discover it', sub: 'Your plan gets extra attention from people browsing nearby plans.' },
             ].map((b, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(167,139,250,0.15)' }}>
                 <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(167,139,250,0.18)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -125,14 +129,14 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
                 <Text style={{ fontSize: 17, fontFamily: 'ClashDisplay-Semibold', color: isFree ? '#1A0E2E' : 'rgba(255,255,255,0.85)', letterSpacing: 0.2 }}>
-                  {isFree ? 'Boost my plan — free' : 'Coming soon'}
+                  Boost my plan
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
 
           {/* Footer with shield icon */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 14, paddingHorizontal: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 18, paddingHorizontal: 24 }}>
             <Shield size={12} color="rgba(255,255,255,0.4)" weight="bold" />
             <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textAlign: 'center' }}>
               {isFree
@@ -140,24 +144,31 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
                 : "You've used your free boost. Paid boosts go live in the next release."}
             </Text>
           </View>
+          </ScrollView>
         </Animated.View>
       </Animated.View>
     </Modal>
   )
 }
 
-// Hero arrow — big, fat, violet→pink gradient with drop shadow so it
-// reads "rising" without needing a 3D render. Uses a masked-view trick:
-// LinearGradient as background, masked by an ArrowFatUp shape on top.
-function MaskedArrow() {
+// Custom fat arrow SVG — wide shoulders, vertical body, rounded corners,
+// violet→pink gradient fill. Closer to Daria's 3D mockup than any of the
+// Phosphor/Lucide stock arrows, and uses real LinearGradient inside the
+// SVG (not just a tinted fill) so it pops on dark.
+function BoostArrowSvg({ size = 80 }: { size?: number }) {
   return (
-    <View style={{ width: 78, height: 78, alignItems: 'center', justifyContent: 'center' }}>
-      {/* Drop-glow layer */}
-      <View style={{ position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: '#A78BFA', opacity: 0.35 }} />
-      {/* Filled arrow — using a single Phosphor ArrowFatUp at large size.
-          We could mask a gradient through it, but a solid violet fill with
-          a separate glow blob behind reads cleaner on dark backgrounds. */}
-      <ArrowFatUp size={78} color="#C4B5FD" weight="fill" />
-    </View>
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Defs>
+        <SvgLinearGradient id="boostArrowGrad" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor="#C4B5FD" />
+          <Stop offset="0.5" stopColor="#A78BFA" />
+          <Stop offset="1" stopColor="#EC4899" />
+        </SvgLinearGradient>
+      </Defs>
+      <Path
+        d="M32 8 C 30.4 8 28.8 8.6 27.7 9.8 L 12.6 24.9 C 11.6 25.9 11 27.3 11 28.7 C 11 31.6 13.4 34 16.3 34 L 22 34 L 22 52 C 22 54.8 24.2 57 27 57 L 37 57 C 39.8 57 42 54.8 42 52 L 42 34 L 47.7 34 C 50.6 34 53 31.6 53 28.7 C 53 27.3 52.4 25.9 51.4 24.9 L 36.3 9.8 C 35.2 8.6 33.6 8 32 8 Z"
+        fill="url(#boostArrowGrad)"
+      />
+    </Svg>
   )
 }
