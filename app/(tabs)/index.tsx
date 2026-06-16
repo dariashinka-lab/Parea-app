@@ -3742,6 +3742,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
   const refillInFlightRef = useRef<Set<string>>(new Set())
   const fetchRequestsRef = useRef<(() => Promise<void>) | null>(null)
+  // Request IDs the host just approved or rejected — kept for ~6s so the
+  // join_requests poll (5s interval) can't flash the joiner back into the
+  // pending list while the optimistic local state already removed them and
+  // the DB UPDATE is still in flight.
+  const recentlyActedRequestIdsRef = useRef<Set<string>>(new Set())
+  const markRequestActedOn = (requestId: string | number | undefined) => {
+    if (!requestId) return
+    const key = String(requestId)
+    recentlyActedRequestIdsRef.current.add(key)
+    setTimeout(() => { recentlyActedRequestIdsRef.current.delete(key) }, 6000)
+  }
 
   // Poll real join requests from DB for hosted events
   useEffect(() => {
@@ -3777,9 +3788,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         return validReqData.map((r: any) => ({ ...r, profiles: profileMap[r.requester_id] || {} }))
       })()
 
-      // Pending requests
+      // Pending requests — skip any the host just approved/rejected. The DB
+      // UPDATE for that action may not have committed by the time this poll
+      // queried, so a request can still come back as pending here even though
+      // the host already acted. Without this filter the joiner card would
+      // flash back onto the list for ~5s.
       const newRequests: Record<number, any[]> = {}
-      data.filter((r: any) => r.status === 'pending').forEach((req: any) => {
+      data.filter((r: any) => r.status === 'pending' && !recentlyActedRequestIdsRef.current.has(String(r.id))).forEach((req: any) => {
         const p = req.profiles || {}
         const evId = req.event_id
         if (!newRequests[evId]) newRequests[evId] = []
@@ -6105,6 +6120,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               }
               // Update DB if real joiner
               if (joiner._real && joiner.requestId) {
+                markRequestActedOn(joiner.requestId)
                 supabase.from('join_requests')
                   .update({ status: 'approved' })
                   .eq('id', joiner.requestId)
@@ -6156,6 +6172,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                 [eventId]: (prev[eventId] || []).filter((r: any) => r.requestId !== joiner.requestId),
               }))
               if (joiner._real) {
+                markRequestActedOn(joiner.requestId)
                 // UPDATE status='rejected' — keeps the row so joiner can't re-submit.
                 // Match by id when we have it, otherwise by (event_id, requester_id)
                 // pair as a fallback for callers that didn't carry requestId.
