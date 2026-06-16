@@ -392,10 +392,17 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
     return true
   }).sort((a, b) => {
     // Boosted events always at the very top — that's the paywall promise.
-    const aBoost = (boostedEvents?.[a.id] || 0) > Date.now()
-    const bBoost = (boostedEvents?.[b.id] || 0) > Date.now()
+    // Pull active boost from DB field (boost_expires_at). Newest activation
+    // ranks first among multiple bo osted events (boost_expires_at = NOW + 48h,
+    // so a higher value means the boost was activated more recently).
+    const nowMs = Date.now()
+    const aExp = a.boost_expires_at ? new Date(a.boost_expires_at).getTime() : 0
+    const bExp = b.boost_expires_at ? new Date(b.boost_expires_at).getTime() : 0
+    const aBoost = aExp > nowMs
+    const bBoost = bExp > nowMs
     if (aBoost && !bBoost) return -1
     if (!aBoost && bBoost) return 1
+    if (aBoost && bBoost) return bExp - aExp  // newest boost first
     // Then promoted (editor-set is_promoted).
     if (a.is_promoted && !b.is_promoted) return -1
     if (!a.is_promoted && b.is_promoted) return 1
@@ -1029,10 +1036,10 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
                         <Text style={{ fontSize: 15, fontWeight: '800', color: '#1E1B4B', flex: 1 }} numberOfLines={1}>{ev.title}</Text>
                         {/* FEATURED — community event the host has paid to boost.
-                            Violet→pink gradient (premium feel, distinct from the
-                            orange POPULAR sticker and from Tinder/Bumble flame). */}
+                            Reads boost_expires_at from DB so every viewer sees it,
+                            not just the host who paid. */}
                         {(() => {
-                          const exp = boostedEvents?.[ev.id]
+                          const exp = ev.boost_expires_at ? new Date(ev.boost_expires_at).getTime() : 0
                           if (!exp || exp <= Date.now()) return null
                           return (
                             <LinearGradient colors={['#8B5CF6', '#EC4899']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -1711,6 +1718,25 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // survives reload — gives Daria a clean transition to paid in v2.
   const FREE_BOOST_ALLOWANCE = 1
   const [boostsUsed, setBoostsUsed] = useState(0)
+
+  // Backfill boosts_used from profiles on login so the free-trial counter
+  // survives reinstall / clearing AsyncStorage. AsyncStorage hydrate above
+  // sets a local fallback, but the DB value is source of truth — pulled here.
+  useEffect(() => {
+    if (!userData?.dbId) return
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('boosts_used')
+        .eq('id', userData.dbId)
+        .maybeSingle()
+      if (cancelled) return
+      if (error) { console.warn('boosts_used fetch error:', error.message); return }
+      if (typeof data?.boosts_used === 'number') setBoostsUsed(data.boosts_used)
+    })()
+    return () => { cancelled = true }
+  }, [userData?.dbId])
   const [vibes, setVibes] = useState<number[]>([])
   const [dbSeekers, setDbSeekers] = useState<any[]>([])
   const [feedOfficialDbEvents, setFeedOfficialDbEvents] = useState<any[]>([])
@@ -1771,6 +1797,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           hostTransport: e.host_transport || null,
           crewPref: e.crew_pref || 'any',
           visibility: e.visibility || 'public',
+          // Active Boost: ISO string when boost expires. Drives FEATURED pill
+          // + top-of-feed sort for ALL viewers, not just the host. Read directly
+          // from DB so every user sees the same boost state.
+          boost_expires_at: e.boost_expires_at || null,
           hostProfile: e.host ? {
             id: e.host.id,
             name: e.host.name || 'Host',
@@ -7709,23 +7739,44 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         event={boostSheetEvent}
         freeBoostsLeft={Math.max(0, FREE_BOOST_ALLOWANCE - boostsUsed)}
         onClose={() => setBoostSheetEvent(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           const evId = boostSheetEvent?.id
           const freeLeft = Math.max(0, FREE_BOOST_ALLOWANCE - boostsUsed)
           if (freeLeft === 0) {
-            // No free boosts left and real IAP isn't wired yet — surface a
-            // friendly "coming soon" instead of silently doing nothing.
             showToast("We'll let you know when paid boosts go live", 'Coming soon', '⏳')
             setBoostSheetEvent(null)
             return
           }
-          if (typeof evId === 'number') {
-            // 48-hour featured window. Real IAP wires up here later — for v1
-            // it's the "first boost free" path: instant grant, no payment.
-            const expiresAt = Date.now() + 48 * 60 * 60 * 1000
-            setBoostedEvents(prev => ({ ...prev, [evId]: expiresAt }))
+          if (typeof evId !== 'number') { setBoostSheetEvent(null); return }
+          // Real backend wiring — write to DB so OTHER users see FEATURED, not
+          // just the booster. boost_expires_at = now + 48h.
+          try {
+            const expiresIso = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+            const { error: boostErr } = await supabase
+              .from('community_events')
+              .update({ boost_expires_at: expiresIso })
+              .eq('id', evId)
+            if (boostErr) {
+              console.warn('boost update error:', boostErr.message)
+              showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
+              setBoostSheetEvent(null)
+              return
+            }
+            // Update local feed copy so the FEATURED pill appears instantly,
+            // without waiting for the next poll.
+            setDbCommunityEvents(prev => prev.map((e: any) =>
+              e.id === evId ? { ...e, boost_expires_at: expiresIso } : e
+            ))
+            // Increment the free-trial counter in profiles so the allowance
+            // survives reinstall — survives clearing AsyncStorage too.
+            if (userData?.dbId) {
+              await supabase.from('profiles').update({ boosts_used: boostsUsed + 1 }).eq('id', userData.dbId)
+            }
             setBoostsUsed(prev => prev + 1)
             showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+          } catch (e: any) {
+            console.warn('boost exception:', e?.message)
+            showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
           }
           setBoostSheetEvent(null)
         }}

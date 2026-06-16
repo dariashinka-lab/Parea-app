@@ -255,7 +255,12 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                 // prettyEventTime returns e.g. "22 May, 09:30" — swap the comma
                 // for a middle-dot to match the rest of the new card style.
                 const whenLabel = (prettyEventTime(ev.time) || '').replace(/,\s*/, ' · ')
-                const boostExpiry = boostedEvents[ev.id]
+                // Read boost from DB field (set when host pays) so every viewer
+                // sees FEATURED — not just the host. boostedEvents stays for the
+                // local 'just confirmed' state but the source of truth is DB.
+                const dbBoostExpiry = ev.boost_expires_at ? new Date(ev.boost_expires_at).getTime() : 0
+                const localBoostExpiry = boostedEvents[ev.id] || 0
+                const boostExpiry = Math.max(dbBoostExpiry, localBoostExpiry)
                 const isBoosted = boostExpiry && boostExpiry > Date.now()
                 const hoursLeft = isBoosted ? Math.max(0, Math.ceil((boostExpiry - Date.now()) / 3600000)) : 0
                 return (
