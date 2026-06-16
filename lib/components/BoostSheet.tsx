@@ -144,24 +144,3 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
   )
 }
 
-// Custom fat arrow SVG — wide shoulders, vertical body, rounded corners,
-// violet→pink gradient fill. Closer to Daria's 3D mockup than any of the
-// Phosphor/Lucide stock arrows, and uses real LinearGradient inside the
-// SVG (not just a tinted fill) so it pops on dark.
-function BoostArrowSvg({ size = 80 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-      <Defs>
-        <SvgLinearGradient id="boostArrowGrad" x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#C4B5FD" />
-          <Stop offset="0.5" stopColor="#A78BFA" />
-          <Stop offset="1" stopColor="#EC4899" />
-        </SvgLinearGradient>
-      </Defs>
-      <Path
-        d="M32 8 C 30.4 8 28.8 8.6 27.7 9.8 L 12.6 24.9 C 11.6 25.9 11 27.3 11 28.7 C 11 31.6 13.4 34 16.3 34 L 22 34 L 22 52 C 22 54.8 24.2 57 27 57 L 37 57 C 39.8 57 42 54.8 42 52 L 42 34 L 47.7 34 C 50.6 34 53 31.6 53 28.7 C 53 27.3 52.4 25.9 51.4 24.9 L 36.3 9.8 C 35.2 8.6 33.6 8 32 8 Z"
-        fill="url(#boostArrowGrad)"
-      />
-    </Svg>
-  )
-}
