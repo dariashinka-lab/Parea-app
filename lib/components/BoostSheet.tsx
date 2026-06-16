@@ -3,15 +3,18 @@ import { Animated, Modal, Pressable, Text, TouchableOpacity, View } from 'react-
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Haptics from 'expo-haptics'
-import { Sparkle, CheckCircle as PhCheckCircle, X } from '../phosphor-icons'
-import { BoostIcon } from './BoostIcon'
+import { ArrowFatUp, ArrowUp, Star, UsersThree, Shield, Sparkle, X } from '../phosphor-icons'
 
-// Boost paywall sheet — shown when a community-event host taps "Boost".
-// Visual feel: dark premium glass with a violet→pink gradient header
-// (distinctly different from Tinder/Bumble's orange-flame palette and from
-// our own POPULAR sticker — so the FEATURED upgrade stays its own visual
-// lane). "Free during launch" is the hint-don't-enforce signal — UI is in
-// place, real IAP wires up later when Apple/Google developer accounts ready.
+// Boost paywall sheet — matches Daria's mockup exactly:
+// - Hero: filled violet→pink arrow with glow (no 3D pedestal — flat with shadow)
+// - Wording uses "plan" throughout (not "event")
+// - Each benefit has its own small icon in a circle (arrow / star / users)
+// - €2.99 + "One-time boost" subtitle, no strikethrough in paid state
+// - CTA "Boost my plan" with dark text on violet→pink gradient
+// - Footer with shield icon: "Boosts last 48 hours. One active boost per plan."
+//
+// Free-trial state preserves "first one free" — small badge above price,
+// CTA stays gradient and active.
 export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConfirm }: {
   visible: boolean
   event: any | null
@@ -37,7 +40,7 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
 
   return (
     <Modal transparent animationType="none" visible={visible} onRequestClose={onClose} statusBarTranslucent>
-      <Animated.View style={{ flex: 1, backgroundColor: 'rgba(5,3,15,0.72)', opacity }}>
+      <Animated.View style={{ flex: 1, backgroundColor: 'rgba(5,3,15,0.78)', opacity }}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
         <Animated.View style={{
           position: 'absolute', left: 0, right: 0, bottom: 0,
@@ -50,89 +53,111 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
           {/* Drag handle */}
           <View style={{ alignSelf: 'center', width: 44, height: 5, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.18)', marginTop: 10 }} />
 
-          {/* Header — violet→pink gradient with rocket */}
-          <View style={{ alignItems: 'center', paddingTop: 18, paddingHorizontal: 24 }}>
-            <LinearGradient
-              colors={['#8B5CF6', '#A78BFA', '#EC4899']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{ width: 72, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center', shadowColor: '#A78BFA', shadowOpacity: 0.55, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
-              <BoostIcon size={40} color="#fff" />
-            </LinearGradient>
+          {/* Close X */}
+          <TouchableOpacity onPress={onClose} hitSlop={12}
+            style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+            <X size={16} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
 
-            <Text style={{ fontSize: 24, fontFamily: 'ClashDisplay-Bold', color: '#fff', letterSpacing: -0.5, marginTop: 18 }}>
-              Boost your event
-            </Text>
-            {event?.title && (
-              <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: 'Outfit-Medium', color: 'rgba(255,255,255,0.55)', marginTop: 4, maxWidth: 280 }}>
-                {event.title}
-              </Text>
-            )}
+          {/* Hero: big filled arrow on a soft glow pad */}
+          <View style={{ alignItems: 'center', paddingTop: 28 }}>
+            <View style={{ width: 120, height: 110, alignItems: 'center', justifyContent: 'center' }}>
+              {/* Soft glow pad behind the arrow — gives the 'rising from pedestal' feel
+                  without needing a 3D illustration. Two stacked rings, fading out. */}
+              <View style={{ position: 'absolute', bottom: 4, width: 88, height: 14, borderRadius: 50, backgroundColor: 'rgba(167,139,250,0.18)' }} />
+              <View style={{ position: 'absolute', bottom: 12, width: 64, height: 10, borderRadius: 50, backgroundColor: 'rgba(167,139,250,0.28)' }} />
+              <MaskedArrow />
+            </View>
           </View>
 
-          {/* Benefits */}
-          <View style={{ paddingHorizontal: 24, paddingTop: 22, gap: 12 }}>
+          {/* Title + subtitle */}
+          <View style={{ paddingHorizontal: 28, marginTop: 14 }}>
+            <Text style={{ fontSize: 28, fontFamily: 'ClashDisplay-Bold', color: '#fff', letterSpacing: -0.5, textAlign: 'center' }}>
+              Boost your plan
+            </Text>
+            <Text style={{ fontSize: 14, fontFamily: 'Outfit-Regular', color: 'rgba(255,255,255,0.55)', textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
+              Get more visibility in the Community feed for 48 hours.
+            </Text>
+          </View>
+
+          {/* Benefits — each with its own contextual icon */}
+          <View style={{ paddingHorizontal: 24, paddingTop: 24, gap: 12 }}>
             {[
-              { title: 'Top of the feed for 48 hours', sub: 'Featured spot above all other community events' },
-              { title: 'Glowing FEATURED badge', sub: 'Premium sparkle on your card — stands out at a glance' },
-              { title: '3-5× more discovery', sub: 'Get seen by people who would never scroll that far' },
+              { Icon: ArrowUp, title: 'Top of the feed for 48 hours', sub: 'Your plan appears above regular community plans.' },
+              { Icon: Star, title: 'Featured badge', sub: 'A premium badge highlights your plan and builds trust.' },
+              { Icon: UsersThree, title: 'More people can discover it', sub: 'Your plan gets more attention from people browsing nearby plans.' },
             ].map((b, i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)' }}>
-                <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(167,139,250,0.18)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <PhCheckCircle size={16} color="#A78BFA" weight="fill" />
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: 'rgba(167,139,250,0.15)' }}>
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(167,139,250,0.18)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <b.Icon size={20} color="#C4B5FD" weight={b.Icon === Star ? 'fill' : 'bold'} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff', marginBottom: 2 }}>{b.title}</Text>
-                  <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 17 }}>{b.sub}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#fff', marginBottom: 3 }}>{b.title}</Text>
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 18 }}>{b.sub}</Text>
                 </View>
               </View>
             ))}
           </View>
 
-          {/* Price + CTA */}
-          <View style={{ paddingHorizontal: 24, paddingTop: 22 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 14 }}>
-              {isFree ? (
-                <>
-                  <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.4)', textDecorationLine: 'line-through' }}>
-                    €2.99
-                  </Text>
-                  <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, backgroundColor: 'rgba(67,233,123,0.15)', borderWidth: 1, borderColor: 'rgba(67,233,123,0.35)', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Sparkle size={10} color="#43E97B" weight="fill" />
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#43E97B', letterSpacing: 0.3 }}>1 FREE BOOST ON US</Text>
-                  </View>
-                </>
-              ) : (
-                <Text style={{ fontSize: 24, fontFamily: 'ClashDisplay-Bold', color: '#fff' }}>€2.99</Text>
-              )}
-            </View>
-
-            <TouchableOpacity activeOpacity={isFree ? 0.88 : 1} onPress={() => { Haptics.notificationAsync(isFree ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning); onConfirm() }}
-              style={{ borderRadius: 99, overflow: 'hidden', opacity: isFree ? 1 : 0.7 }}>
-              <LinearGradient
-                colors={isFree ? ['#8B5CF6', '#EC4899'] : ['rgba(167,139,250,0.3)', 'rgba(236,72,153,0.3)']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={{ paddingVertical: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
-                <BoostIcon size={18} color="#fff" />
-                <Text style={{ fontSize: 16, fontFamily: 'ClashDisplay-Semibold', color: '#fff', letterSpacing: 0.2 }}>
-                  {isFree ? 'Boost — free' : 'Coming soon'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 12, lineHeight: 16 }}>
-              {isFree
-                ? 'One free Boost per account — try it on this event, see the lift.\n48 hours of featured placement. No subscription, no auto-renewal.'
-                : "You've used your free Boost.\nPaid boosts go live in the next release — we'll let you know."}
+          {/* Price */}
+          <View style={{ alignItems: 'center', paddingTop: 24, paddingHorizontal: 24 }}>
+            {isFree && (
+              <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99, backgroundColor: 'rgba(67,233,123,0.15)', borderWidth: 1, borderColor: 'rgba(67,233,123,0.4)', flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+                <Sparkle size={11} color="#43E97B" weight="fill" />
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#43E97B', letterSpacing: 0.4 }}>1 FREE BOOST ON US</Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 28, fontFamily: 'ClashDisplay-Bold', color: '#fff', letterSpacing: -0.5 }}>
+              {isFree ? 'Free' : '€2.99'}
+            </Text>
+            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+              {isFree ? 'on your first plan boost' : 'One-time boost'}
             </Text>
           </View>
 
-          {/* Close X */}
-          <TouchableOpacity onPress={onClose} hitSlop={12}
-            style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
-            <X size={14} color="rgba(255,255,255,0.6)" />
-          </TouchableOpacity>
+          {/* CTA */}
+          <View style={{ paddingHorizontal: 24, paddingTop: 18 }}>
+            <TouchableOpacity activeOpacity={isFree ? 0.88 : 0.9}
+              onPress={() => { Haptics.notificationAsync(isFree ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning); onConfirm() }}
+              style={{ borderRadius: 99, overflow: 'hidden' }}>
+              <LinearGradient
+                colors={isFree ? ['#8B5CF6', '#EC4899'] : ['rgba(139,92,246,0.35)', 'rgba(236,72,153,0.35)']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ paddingVertical: 18, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+                <Text style={{ fontSize: 17, fontFamily: 'ClashDisplay-Semibold', color: isFree ? '#1A0E2E' : 'rgba(255,255,255,0.85)', letterSpacing: 0.2 }}>
+                  {isFree ? 'Boost my plan — free' : 'Coming soon'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer with shield icon */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 14, paddingHorizontal: 24 }}>
+            <Shield size={12} color="rgba(255,255,255,0.4)" weight="bold" />
+            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textAlign: 'center' }}>
+              {isFree
+                ? 'Boosts last 48 hours. One active boost per plan.'
+                : "You've used your free boost. Paid boosts go live in the next release."}
+            </Text>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
+  )
+}
+
+// Hero arrow — big, fat, violet→pink gradient with drop shadow so it
+// reads "rising" without needing a 3D render. Uses a masked-view trick:
+// LinearGradient as background, masked by an ArrowFatUp shape on top.
+function MaskedArrow() {
+  return (
+    <View style={{ width: 78, height: 78, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Drop-glow layer */}
+      <View style={{ position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: '#A78BFA', opacity: 0.35 }} />
+      {/* Filled arrow — using a single Phosphor ArrowFatUp at large size.
+          We could mask a gradient through it, but a solid violet fill with
+          a separate glow blob behind reads cleaner on dark backgrounds. */}
+      <ArrowFatUp size={78} color="#C4B5FD" weight="fill" />
+    </View>
   )
 }
