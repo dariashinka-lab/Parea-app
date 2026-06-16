@@ -149,6 +149,17 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
     return evStartMs > 0 && evStartMs + SEVEN_DAYS_MS < now
   }
   const eventPool = [...allEvents, ...hostedEvents]
+  // Defensive dedup: multiple paths may add the same chat to state (hydrate +
+  // realtime + poll), and not every setChatList call deduplicates. Render
+  // each id only once — first occurrence wins. Without this Daria sees the
+  // same DB chat listed twice (one stale snapshot from AsyncStorage hydrate,
+  // one fresh from realtime) for events like 'Лох' and 'Прол'.
+  const seenChatIds = new Set<any>()
+  const dedupedChatList = chatList.filter((c: any) => {
+    if (seenChatIds.has(c.id)) return false
+    seenChatIds.add(c.id)
+    return true
+  })
   const isLongDeadChat = (chat: any) => {
     const evId = chat.eventRefId || chat.communityEventId || chat.hostEventId
     // Try to resolve the linked event. For duo chats event_id is NULL in DB,
@@ -169,7 +180,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
     return false
   }
   const visibleExpiredEvents = expiredAllEvents.filter((ev: any) => !isLongDeadEv(ev))
-  const visibleChats = chatList.filter(c => !isLongDeadChat(c))
+  const visibleChats = dedupedChatList.filter(c => !isLongDeadChat(c))
 
   const FORMAT_CHIP: Record<string, { emoji: string; label: string; color: string }> = {
     '1+1':   { emoji: '👥', label: 'Duo',   color: '#f472b6' },
