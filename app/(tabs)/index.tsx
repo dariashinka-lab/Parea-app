@@ -7842,13 +7842,25 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           // just the booster. boost_expires_at = now + 48h.
           try {
             const expiresIso = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-            const { error: boostErr } = await supabase
+            // .select() so we get the updated row back. Without it, supabase
+            // doesn't tell us whether RLS silently filtered the UPDATE to 0
+            // rows — and we'd flash 'Boost activated' while boost_expires_at
+            // stayed NULL in DB (Daria's reproducer: host_id matches but
+            // auth.uid() check failed for whatever reason).
+            const { data: updatedRows, error: boostErr } = await supabase
               .from('community_events')
               .update({ boost_expires_at: expiresIso })
               .eq('id', evId)
+              .select('id, boost_expires_at')
             if (boostErr) {
-              console.warn('boost update error:', boostErr.message)
-              showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
+              console.warn('boost update error:', JSON.stringify(boostErr))
+              showToast(boostErr.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
+              setBoostSheetEvent(null)
+              return
+            }
+            if (!updatedRows || updatedRows.length === 0) {
+              console.warn('boost update affected 0 rows — RLS likely rejected (host_id mismatch?). eventId=', evId, 'userDbId=', userData?.dbId)
+              showToast('You are not the host of this plan', "Couldn't activate boost", '⚠️')
               setBoostSheetEvent(null)
               return
             }
