@@ -6541,9 +6541,38 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           <TouchableOpacity style={s.navItem} onPress={() => { setMessagesInitialSubTab('messages'); setActiveTab('messages') }}>
             <View style={{ position: 'relative' }}>
               <Feather name="message-circle" size={22} color={activeTab === 'messages' ? '#06B6D4' : '#94A3B8'} />
-              {chatList.some((c: any) => c.isNew) && activeTab !== 'messages' && (
-                <View style={{ position: 'absolute', top: -3, right: -5, width: 8, height: 8, borderRadius: 4, backgroundColor: '#06B6D4', borderWidth: 1.5, borderColor: '#F8F7FF' }} />
-              )}
+              {activeTab !== 'messages' && (() => {
+                // Mirror the visibleChats filter MessagesTab applies. A chat
+                // can sit in state with isNew=true but be hidden from the UI
+                // because its event ended >7d ago or it's an orphan with no
+                // peers — that used to leak through here and keep the dot lit
+                // for a chat the user can't even open.
+                const nowMs = Date.now()
+                const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+                const eventPool = [...feedOfficialDbEvents, ...dbCommunityEvents, ...userCreatedEvents]
+                const isLongDeadEv = (ev: any) => {
+                  let evStartMs = 0
+                  if (ev?.expiresAt > 0) evStartMs = ev.expiresAt
+                  else {
+                    const parsed = parseEventDateTime(ev?.date_label || ev?.time || '')
+                    if (parsed) evStartMs = parsed.getTime()
+                  }
+                  return evStartMs > 0 && evStartMs + SEVEN_DAYS_MS < nowMs
+                }
+                const isLongDeadChat = (chat: any) => {
+                  const evId = chat.eventRefId || chat.communityEventId || chat.hostEventId
+                  const ev = evId
+                    ? eventPool.find((e: any) => e.id === evId)
+                    : (chat.event ? eventPool.find((e: any) => e.title === chat.event) : null)
+                  if (ev) return isLongDeadEv(ev)
+                  const noPeers = (chat.members || 1) <= 1
+                  if (noPeers) return true
+                  return false
+                }
+                const hasVisibleUnread = chatList.some((c: any) => c.isNew && !isLongDeadChat(c))
+                if (!hasVisibleUnread) return null
+                return <View style={{ position: 'absolute', top: -3, right: -5, width: 8, height: 8, borderRadius: 4, backgroundColor: '#06B6D4', borderWidth: 1.5, borderColor: '#F8F7FF' }} />
+              })()}
             </View>
             <Text style={[s.navLabel, activeTab === 'messages' && { color: '#06B6D4' }]}>Chats</Text>
           </TouchableOpacity>
