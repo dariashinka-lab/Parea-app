@@ -353,28 +353,34 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
 
               {step === 1 && (
                 <View>
-                  <View style={{ marginBottom: 28, flexDirection: 'row', alignItems: 'center' }}>
+                  {/* Tighter spacing throughout step 1: title margin trimmed,
+                      field gaps unified at 18px, and Gender now gets explicit
+                      bottom margin so it doesn't run into the city pills.
+                      Title image was 150×150 — shrunk to 120×120 to claw back
+                      vertical room so Continue stops getting eaten by the
+                      Android gesture-pill at the bottom. */}
+                  <View style={{ marginBottom: 18, flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 26, fontWeight: '800', color: '#1E1B4B', letterSpacing: -0.5, lineHeight: 32 }}>
                         Tell us{'\n'}about you ✨
                       </Text>
-                      <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 8, lineHeight: 18 }}>
+                      <Text style={{ fontSize: 13, color: '#94A3B8', marginTop: 6, lineHeight: 18 }}>
                         Your profile · visible to others
                       </Text>
                     </View>
                     <Image
                       source={require('../../assets/images/step1_bubble.png')}
-                      style={{ width: 150, height: 150, marginLeft: 4, marginRight: -8 }}
+                      style={{ width: 120, height: 120, marginLeft: 4, marginRight: -8 }}
                       resizeMode="contain"
                       fadeDuration={0}
                     />
                   </View>
 
-                  <View style={{ marginBottom: 24 }}>
+                  <View style={{ marginBottom: 18 }}>
                     <Text style={s.label}>Name</Text>
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.75)', borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 18, paddingVertical: 4, boxShadow: '0 2px 12px rgba(129,140,248,0.08)' } as any}>
                       <TextInput
-                        style={{ fontSize: 17, color: '#1E1B4B', fontWeight: '600', paddingVertical: 14 }}
+                        style={{ fontSize: 17, color: '#1E1B4B', fontWeight: '600', paddingVertical: 12 }}
                         value={name}
                         onChangeText={t => setName(t.replace(/[^a-zA-ZА-Яа-яЁёÀ-ÿ\s\-']/g, ''))}
                         placeholder="Your name"
@@ -385,13 +391,13 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
                     </View>
                   </View>
 
-                  <View style={{ marginBottom: 28 }}>
+                  <View style={{ marginBottom: 18 }}>
                     <Text style={s.label}>Date of birth</Text>
                     <TouchableOpacity
                       onPress={() => setDobPickerOpen(true)}
                       activeOpacity={0.85}
                       style={{
-                        paddingVertical: 14,
+                        paddingVertical: 12,
                         paddingHorizontal: 16,
                         backgroundColor: '#F8FAFC',
                         borderRadius: 14,
@@ -413,13 +419,13 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
                       <CalendarBlank size={20} color={dobFilled ? '#818CF8' : '#94A3B8'} weight="regular" />
                     </TouchableOpacity>
                     {dobFilled && dobAgeNum < 18 && (
-                      <Text style={{ fontSize: 12, fontFamily: 'Outfit-Medium', color: '#EF4444', marginTop: 8 }}>
+                      <Text style={{ fontSize: 12, fontFamily: 'Outfit-Medium', color: '#EF4444', marginTop: 6 }}>
                         You must be 18 or older
                       </Text>
                     )}
                   </View>
 
-                  <View>
+                  <View style={{ marginBottom: 18 }}>
                     <Text style={s.label}>Gender</Text>
                     <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                       {['Male', 'Female', 'Other'].map(label => {
