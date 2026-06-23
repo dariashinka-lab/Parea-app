@@ -924,8 +924,8 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
             <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', marginBottom: 22, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.35)' }}>
               <Ionicons name="checkmark" size={50} color="#fff" />
             </View>
-            <Text style={{ fontSize: 30, fontFamily: 'ClashDisplay-Bold', color: '#fff', letterSpacing: -0.6, marginBottom: 6 }}>You're in ✦</Text>
-            <Text style={{ fontSize: 14, fontFamily: 'Outfit-Medium', color: 'rgba(255,255,255,0.85)', letterSpacing: 0.2 }}>Welcome to Parea</Text>
+            <Text style={{ fontSize: 30, fontFamily: 'ClashDisplay-Bold', color: '#fff', letterSpacing: -0.6, marginBottom: 6 }}>Welcome to Parea ✨</Text>
+            <Text style={{ fontSize: 14, fontFamily: 'Outfit-Medium', color: 'rgba(255,255,255,0.85)', letterSpacing: 0.2 }}>Let's find your crew</Text>
           </Animated.View>
         </Animated.View>
       )}
