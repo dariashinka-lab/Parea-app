@@ -58,16 +58,13 @@ export function RegistrationScreen({ onBack, onSendOtp, onGoogleSignIn, onAppleS
   return (
     <LinearGradient colors={['#F8F7FF', '#FFF7F5']} style={s.fill}>
       {/* Background blobs */}
-      {/* Decorative bubbles — balanced diagonally so the screen reads
-          symmetric: violet bubble top-right + orange bubble bottom-left
-          (and the reverse), small dots filling the corners. Previous
-          layout had bubbles bunched on the right side. */}
-      <View style={{ position: 'absolute', top: -90, right: -90, width: 320, height: 320, borderRadius: 160, backgroundColor: '#C4B5FD', opacity: 0.18 }} />
-      <View style={{ position: 'absolute', bottom: -80, left: -80, width: 280, height: 280, borderRadius: 140, backgroundColor: '#C4B5FD', opacity: 0.13 }} />
-      <View style={{ position: 'absolute', top: 180, left: -40, width: 140, height: 140, borderRadius: 70, backgroundColor: '#FED7AA', opacity: 0.18 }} />
-      <View style={{ position: 'absolute', bottom: 140, right: -40, width: 140, height: 140, borderRadius: 70, backgroundColor: '#FED7AA', opacity: 0.18 }} />
-      <View style={{ position: 'absolute', top: 320, right: 36, width: 22, height: 22, borderRadius: 11, backgroundColor: '#FED7AA', opacity: 0.55 }} />
-      <View style={{ position: 'absolute', bottom: 280, left: 36, width: 22, height: 22, borderRadius: 11, backgroundColor: '#C4B5FD', opacity: 0.55 }} />
+      {/* Decorative bubbles — only in the four corners so they don't
+          overlap the form / CTA in the middle. Previous mid-height
+          bubbles bled into the Continue button and read as a smudge. */}
+      <View style={{ position: 'absolute', top: -110, right: -110, width: 320, height: 320, borderRadius: 160, backgroundColor: '#C4B5FD', opacity: 0.18 }} />
+      <View style={{ position: 'absolute', top: -60, left: -100, width: 200, height: 200, borderRadius: 100, backgroundColor: '#FED7AA', opacity: 0.16 }} />
+      <View style={{ position: 'absolute', bottom: -100, left: -100, width: 280, height: 280, borderRadius: 140, backgroundColor: '#C4B5FD', opacity: 0.13 }} />
+      <View style={{ position: 'absolute', bottom: -60, right: -90, width: 200, height: 200, borderRadius: 100, backgroundColor: '#FED7AA', opacity: 0.14 }} />
 
       <StatusBar style="dark" />
       <SafeAreaView style={s.fill}>
