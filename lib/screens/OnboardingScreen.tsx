@@ -898,9 +898,10 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
             the Continue still glued to the gesture pill. */}
         {/* Android gesture-pill devices (Xiaomi etc.) report a small insets.bottom
             already, so +16 wasn't enough — the Continue button stayed flush
-            against the pill on every step. Bump to +28 on Android so the
-            button always has visible breathing room. */}
-        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 28 : insets.bottom > 0 ? insets.bottom + 12 : 16 }]}>
+            against the pill on every step. Bump to +36 on Android so even
+            taller buttons (the step-5 'Complete profile' bento button with
+            18px vertical padding inside) clear the system pill. */}
+        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 36 : insets.bottom > 0 ? insets.bottom + 12 : 16 }]}>
           {step === TOTAL ? (
             <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
               <BlurView intensity={40} tint="light" style={s.bentoFinishBlur}>
