@@ -70,11 +70,30 @@ export function RegistrationScreen({ onBack, onSendOtp, onGoogleSignIn, onAppleS
           <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
 
             {/* Back + Logo */}
+            {/* Match the Landing splash + Play Store feature graphic by
+                rendering 'Parea' as a gradient wordmark (icon + gradient
+                text) instead of the old flat logo3.png. */}
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 12, gap: 10 }}>
               <TouchableOpacity onPress={onBack} style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: 'rgba(139,92,246,0.08)', alignItems: 'center', justifyContent: 'center' }}>
                 <CaretLeft size={18} color="#7C3AED" weight="bold" />
               </TouchableOpacity>
-              <Image source={require('../../assets/images/logo3.png')} style={{ width: 120, height: 46 }} resizeMode="contain" />
+              <Image source={require('../../assets/images/icon.png')} style={{ width: 32, height: 32 }} resizeMode="contain" />
+              <MaskedView
+                style={{ height: 30, flexDirection: 'row' }}
+                maskElement={
+                  <View style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: 'ClashDisplay-Bold', fontSize: 26, letterSpacing: -1, color: '#000' }}>
+                      Parea
+                    </Text>
+                  </View>
+                }>
+                <LinearGradient
+                  colors={['#A78BFA', '#EC4899', '#F97316']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ flex: 1, width: 110 }}
+                />
+              </MaskedView>
             </View>
 
             {/* Hero */}
