@@ -7,8 +7,35 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Path } from 'react-native-svg'
 import * as SystemUI from 'expo-system-ui'
+import MaskedView from '@react-native-masked-view/masked-view'
 import { MaskHappy, MicrophoneStage, CheckCircle as PhCheckCircle, ForkKnife } from '../phosphor-icons'
 import { AuroraBg } from '../components/AuroraBg'
+
+// Wordmark rendered as a gradient-filled "Parea" so the splash matches
+// the Play Store feature graphic. MaskedView clips a violet→pink→orange
+// LinearGradient to the shape of the text. Used in place of the older
+// logo.png + flat text combo, which read as a different brand than the
+// store listing.
+function PareaWordmark({ size = 32 }: { size?: number }) {
+  return (
+    <MaskedView
+      style={{ height: size * 1.05, flexDirection: 'row' }}
+      maskElement={
+        <View style={{ flex: 1, backgroundColor: 'transparent', justifyContent: 'center' }}>
+          <Text style={{ fontFamily: 'ClashDisplay-Bold', fontSize: size, letterSpacing: -1, color: '#000' }}>
+            Parea
+          </Text>
+        </View>
+      }>
+      <LinearGradient
+        colors={['#A78BFA', '#EC4899', '#F97316']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      />
+    </MaskedView>
+  )
+}
 
 const { width: W, height: H } = Dimensions.get('window')
 
@@ -143,8 +170,12 @@ export function LandingScreen({ onCreateAccount, onLogin, onGoogleSignIn, onAppl
       <SafeAreaView style={ls.safe}>
 
         {/* ── Logo ── */}
+        {/* Gradient wordmark to match the Play Store feature graphic. The
+            old logo.png was a flat lowercase 'parea' which made the splash
+            and store listing look like two different brands. */}
         <Animated.View style={[ls.logoRow, { opacity: logoOpacity }]}>
-          <Image source={require('../../assets/images/logo.png')} style={ls.logoImg} resizeMode="contain" />
+          <Image source={require('../../assets/images/icon.png')} style={ls.logoMark} resizeMode="contain" />
+          <PareaWordmark size={28} />
         </Animated.View>
 
         {/* ── Hero block ── */}
@@ -223,7 +254,11 @@ export function LandingScreen({ onCreateAccount, onLogin, onGoogleSignIn, onAppl
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={ls.ctaGradient}>
-              <Text style={ls.ctaText} numberOfLines={1}>
+              <Text
+                style={ls.ctaText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}>
                 {isLast ? 'Find my people' : cur.btnLabel}
               </Text>
             </LinearGradient>
@@ -279,6 +314,10 @@ const ls = StyleSheet.create({
   logoImg: {
     width: 120,
     height: 40,
+  },
+  logoMark: {
+    width: 32,
+    height: 32,
   },
   logoText: {
     fontFamily: 'ClashDisplay-Bold',
