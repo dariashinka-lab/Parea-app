@@ -7044,7 +7044,19 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                           const pickImage = async () => {
                             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
                             if (status !== 'granted') return
-                            const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, base64: true, exif: false })
+                            // 16:9 forced crop UI so the cover always matches the
+                            // landscape ratio the feed cards render at. Without
+                            // allowsEditing the user kept a portrait photo and
+                            // the feed cropped chunks off the top/bottom because
+                            // event-card image is height:100 + resizeMode:cover.
+                            const result = await ImagePicker.launchImageLibraryAsync({
+                              mediaTypes: ['images'],
+                              quality: 0.6,
+                              base64: true,
+                              exif: false,
+                              allowsEditing: true,
+                              aspect: [16, 9],
+                            })
                             if (!result.canceled && result.assets[0]) {
                               const asset = result.assets[0]
                               if ((asset.width || 0) < 50 || (asset.height || 0) < 50) { Alert.alert('Invalid image', 'Please choose a proper photo.'); return }
