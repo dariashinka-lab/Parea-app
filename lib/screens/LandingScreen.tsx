@@ -18,14 +18,18 @@ import { AuroraBg } from '../components/AuroraBg'
 // 'P' was visible at size * 3.6 because ClashDisplay-Bold is wider than
 // the typical 0.6-of-em average.
 export function PareaWordmark({ size = 44 }: { size?: number }) {
-  const width = Math.round(size * 4.2)
-  const height = Math.round(size * 1.25)
+  const width = Math.round(size * 4.4)
+  const height = Math.round(size * 1.3)
   return (
     <MaskedView
       style={{ width, height }}
       maskElement={
         <View style={{ width, height, justifyContent: 'center' }}>
-          <Text style={{ fontFamily: 'ClashDisplay-Bold', fontSize: size, letterSpacing: -1, color: '#000' }}>
+          {/* Outfit-Bold for the rounder/geometric letterforms that better
+              match the AI-rendered wordmark on the Play Store feature
+              graphic. ClashDisplay-Bold was more angular and read as a
+              different brand. */}
+          <Text style={{ fontFamily: 'Outfit-Bold', fontSize: size, letterSpacing: -1.5, color: '#000' }}>
             Parea
           </Text>
         </View>

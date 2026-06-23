@@ -79,14 +79,14 @@ export function RegistrationScreen({ onBack, onSendOtp, onGoogleSignIn, onAppleS
               </TouchableOpacity>
               {(() => {
                 const size = 32
-                const width = Math.round(size * 4.2)
-                const height = Math.round(size * 1.25)
+                const width = Math.round(size * 4.4)
+                const height = Math.round(size * 1.3)
                 return (
                   <MaskedView
                     style={{ width, height }}
                     maskElement={
                       <View style={{ width, height, justifyContent: 'center' }}>
-                        <Text style={{ fontFamily: 'ClashDisplay-Bold', fontSize: size, letterSpacing: -1, color: '#000' }}>
+                        <Text style={{ fontFamily: 'Outfit-Bold', fontSize: size, letterSpacing: -1.5, color: '#000' }}>
                           Parea
                         </Text>
                       </View>
