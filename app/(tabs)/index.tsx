@@ -254,7 +254,7 @@ Score each candidate 0-100 for companion compatibility.${user.eventContext ? ' B
 
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
 
-function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, joinedEvents, onJoin, userInterests, setUserEventFormat, setUserEventTransport, onJoinConfirmed, pendingJoinEv, onPendingJoinConsumed, extraEvents, approvedJoiners = {}, tonightVibe, setTonightVibe, onBellPress, unreadCount, bellShake, userData, onCancelHostedEvent, crewStats = {}, seenNewEventIds = [], boostedEvents = {} }: any) {
+function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, joinedEvents, onJoin, userInterests, setUserEventFormat, setUserEventTransport, onJoinConfirmed, pendingJoinEv, onPendingJoinConsumed, extraEvents, approvedJoiners = {}, tonightVibe, setTonightVibe, onBellPress, unreadCount, bellShake, userData, onCancelHostedEvent, crewStats = {}, seenNewEventIds = [], boostedEvents = {}, onStartCreate }: any) {
   const insets = useSafeAreaInsets()
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -1121,7 +1121,21 @@ function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, j
               resizeMode="contain"
             />
             <Text style={{ fontSize: 17, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: -0.3 }}>No community plans yet</Text>
-            <Text style={{ fontSize: 13, fontFamily: 'Outfit-Regular', color: '#94A3B8', marginTop: 6 }}>Tap + to start one</Text>
+            <Text style={{ fontSize: 13, fontFamily: 'Outfit-Regular', color: '#94A3B8', marginTop: 6, marginBottom: 14 }}>Host your own and invite your crew</Text>
+            {/* Make the create CTA visible — the old 'Tap + to start one' text
+                pointed at the bottom-nav + button which wasn't visually obvious
+                to first-time users. Render the same indigo gradient + a plus
+                icon inline so the affordance is in the empty state itself. */}
+            <TouchableOpacity activeOpacity={0.85} onPress={() => onStartCreate?.()}
+              style={{ borderRadius: 99, overflow: 'hidden', shadowColor: '#6366F1', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6 }}>
+              <LinearGradient colors={['#818CF8', '#6366F1']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, paddingVertical: 12 }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="plus" size={15} color="#fff" />
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff', letterSpacing: 0.2 }}>Create a plan</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         )}
         </>)}
@@ -5262,7 +5276,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       <SafeAreaView style={s.fill} edges={Platform.OS === 'ios' ? ['top', 'left', 'right'] : undefined}>
         <View style={{ flex: 1 }}>
           <View style={{ flex: 1, display: activeTab === 'home' ? 'flex' : 'none' }}>
-            <HomeTab city={city} setCityOpen={setCityOpen} feedFilter={feedFilter} setFeedFilter={setFeedFilter} onEventPress={(ev: any) => { markEventSeen(ev?.id); setEventDetail(ev) }} joinedEvents={joinedEvents} onJoin={handleJoinEvent} userInterests={userData?.interests || []} setUserEventFormat={setUserEventFormat} setUserEventTransport={setUserEventTransport} onJoinConfirmed={handleJoinConfirmed} pendingJoinEv={pendingJoinEv} onPendingJoinConsumed={() => setPendingJoinEv(null)} extraEvents={[...userCreatedEvents.map(uc => { const dbVer = dbCommunityEvents.find(d => d.id === uc.id); return dbVer ? { ...uc, participantsCount: dbVer.participantsCount, boost_expires_at: dbVer.boost_expires_at } : uc }), ...dbCommunityEvents.filter(e => !userCreatedEvents.some(u => u.id === e.id))]} approvedJoiners={approvedJoiners} tonightVibe={tonightVibe} setTonightVibe={(v: any) => { setTonightVibe(v); onUpdateUserData?.({ socialEnergy: v.energy, drinksPref: v.drinks, smokingPref: v.smoking }) }} onBellPress={openNotifPanel} unreadCount={unreadCount} bellShake={bellShake} userData={userData} onCancelHostedEvent={(ev: any) => { setUserCreatedEvents(prev => prev.filter(e => e.id !== ev.id)); setPendingJoinRequests(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setApprovedJoiners(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setChatList(prev => prev.filter(c => c.hostEventId !== ev.id)); showToast("Event deleted 🗑️") }} crewStats={crewStatsByEvent} seenNewEventIds={seenNewEventIds} boostedEvents={boostedEvents} />
+            <HomeTab city={city} setCityOpen={setCityOpen} feedFilter={feedFilter} setFeedFilter={setFeedFilter} onEventPress={(ev: any) => { markEventSeen(ev?.id); setEventDetail(ev) }} joinedEvents={joinedEvents} onJoin={handleJoinEvent} userInterests={userData?.interests || []} setUserEventFormat={setUserEventFormat} setUserEventTransport={setUserEventTransport} onJoinConfirmed={handleJoinConfirmed} pendingJoinEv={pendingJoinEv} onPendingJoinConsumed={() => setPendingJoinEv(null)} extraEvents={[...userCreatedEvents.map(uc => { const dbVer = dbCommunityEvents.find(d => d.id === uc.id); return dbVer ? { ...uc, participantsCount: dbVer.participantsCount, boost_expires_at: dbVer.boost_expires_at } : uc }), ...dbCommunityEvents.filter(e => !userCreatedEvents.some(u => u.id === e.id))]} approvedJoiners={approvedJoiners} tonightVibe={tonightVibe} setTonightVibe={(v: any) => { setTonightVibe(v); onUpdateUserData?.({ socialEnergy: v.energy, drinksPref: v.drinks, smokingPref: v.smoking }) }} onBellPress={openNotifPanel} unreadCount={unreadCount} bellShake={bellShake} userData={userData} onCancelHostedEvent={(ev: any) => { setUserCreatedEvents(prev => prev.filter(e => e.id !== ev.id)); setPendingJoinRequests(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setApprovedJoiners(prev => { const n = { ...prev }; delete n[ev.id]; return n }); setChatList(prev => prev.filter(c => c.hostEventId !== ev.id)); showToast("Event deleted 🗑️") }} crewStats={crewStatsByEvent} seenNewEventIds={seenNewEventIds} boostedEvents={boostedEvents} onStartCreate={() => { setCreateType(null); setCreateOpen(true) }} />
           </View>
           <View style={{ position: 'absolute', top: -insets.top, left: 0, right: 0, bottom: 0, display: activeTab === 'vibecheck' ? 'flex' : 'none' }}>
           <VibeCheckTab
