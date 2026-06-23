@@ -896,7 +896,11 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
             just floor at it) — Xiaomi 14 Pro gesture-nav reports ~30 already,
             so a plain Math.max(insets, 30) gave zero extra breathing room and
             the Continue still glued to the gesture pill. */}
-        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 16 : insets.bottom > 0 ? insets.bottom + 8 : 12 }]}>
+        {/* Android gesture-pill devices (Xiaomi etc.) report a small insets.bottom
+            already, so +16 wasn't enough — the Continue button stayed flush
+            against the pill on every step. Bump to +28 on Android so the
+            button always has visible breathing room. */}
+        <View style={[s.bottomBar, { paddingBottom: Platform.OS === 'android' ? insets.bottom + 28 : insets.bottom > 0 ? insets.bottom + 12 : 16 }]}>
           {step === TOTAL ? (
             <TouchableOpacity style={[s.bentoFinishBtn, !canNext() && { opacity: 0.5 }, canNext() && { shadowOpacity: 0.55, shadowRadius: 28, elevation: 14 }]} onPress={next} disabled={!canNext() || showWelcome} activeOpacity={0.88}>
               <BlurView intensity={40} tint="light" style={s.bentoFinishBlur}>
