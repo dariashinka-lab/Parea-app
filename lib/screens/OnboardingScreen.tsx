@@ -10,7 +10,8 @@ import { BlurView } from 'expo-blur'
 import * as ImagePicker from 'expo-image-picker'
 import * as Haptics from 'expo-haptics'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
-import { CalendarBlank } from '../phosphor-icons'
+import { CalendarBlank, Camera as PhCamera, ImageSquare as PhImage, Trash as PhTrash } from '../phosphor-icons'
+import { ActionSheet, ActionSheetItem } from '../components/ActionSheet'
 import { AnimatedInterestChip } from '../components/AnimatedInterestChip'
 import { DobBottomSheet } from '../components/DobBottomSheet'
 import {
@@ -255,23 +256,17 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
     setTimeout(() => setPhotoBadge(b => { const n = [...b]; n[idx] = false; return n }), 1500)
   }
 
+  // Branded ActionSheet replaces the OS Alert.alert for photo picking.
+  // photoSheet tracks which slot opened it; null = closed.
+  const [photoSheet, setPhotoSheet] = useState<{ idx: number; hasPhoto: boolean } | null>(null)
   const onPhotoPress = (idx: number) => {
     // On web Alert.alert with action buttons doesn't fire callbacks, so the
     // selfie/gallery sheet is a dead end — go straight to the file picker.
     if (Platform.OS === 'web') { pickPhoto(idx, 'gallery'); return }
     if (photos[idx]) {
-      Alert.alert('Photo options', '', [
-        { text: 'Take a selfie', onPress: () => pickPhoto(idx, 'camera') },
-        { text: 'Choose from gallery', onPress: () => pickPhoto(idx, 'gallery') },
-        { text: 'Delete', style: 'destructive', onPress: () => removePhoto(idx) },
-        { text: 'Cancel', style: 'cancel' },
-      ])
+      setPhotoSheet({ idx, hasPhoto: true })
     } else if (!photoLoading[idx]) {
-      Alert.alert('Add a photo', '', [
-        { text: 'Take a selfie', onPress: () => pickPhoto(idx, 'camera') },
-        { text: 'Choose from gallery', onPress: () => pickPhoto(idx, 'gallery') },
-        { text: 'Cancel', style: 'cancel' },
-      ])
+      setPhotoSheet({ idx, hasPhoto: false })
     }
   }
 
@@ -929,6 +924,33 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
           </Animated.View>
         </Animated.View>
       )}
+      {/* Branded photo picker sheet — replaces Alert.alert('Add a photo'). */}
+      <ActionSheet
+        visible={!!photoSheet}
+        title={photoSheet?.hasPhoto ? 'Photo options' : 'Add a photo'}
+        actions={(photoSheet ? ([
+          {
+            key: 'camera',
+            label: 'Take a selfie',
+            icon: <PhCamera size={20} color="#6366F1" weight="bold" />,
+            onPress: () => { if (photoSheet) pickPhoto(photoSheet.idx, 'camera') },
+          },
+          {
+            key: 'gallery',
+            label: 'Choose from gallery',
+            icon: <PhImage size={20} color="#6366F1" weight="bold" />,
+            onPress: () => { if (photoSheet) pickPhoto(photoSheet.idx, 'gallery') },
+          },
+          ...(photoSheet.hasPhoto ? [{
+            key: 'delete',
+            label: 'Delete photo',
+            destructive: true as const,
+            icon: <PhTrash size={20} color="#DC2626" weight="bold" />,
+            onPress: () => { if (photoSheet) removePhoto(photoSheet.idx) },
+          }] : []),
+        ] as ActionSheetItem[]) : [])}
+        onClose={() => setPhotoSheet(null)}
+      />
       {dobPickerOpen && (
         <DobBottomSheet
           initialDay={dobDay ? parseInt(dobDay) : 1}

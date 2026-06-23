@@ -52,6 +52,7 @@ export { default as YinYang }          from 'phosphor-react-native/lib/commonjs/
 export { default as AirplaneTilt }     from 'phosphor-react-native/lib/commonjs/icons/AirplaneTilt'
 export { default as Books }            from 'phosphor-react-native/lib/commonjs/icons/Books'
 export { default as Camera }           from 'phosphor-react-native/lib/commonjs/icons/Camera'
+export { default as ImageSquare }      from 'phosphor-react-native/lib/commonjs/icons/ImageSquare'
 export { default as MaskHappy }        from 'phosphor-react-native/lib/commonjs/icons/MaskHappy'
 export { default as Umbrella }         from 'phosphor-react-native/lib/commonjs/icons/Umbrella'
 export { default as MicrophoneStage }  from 'phosphor-react-native/lib/commonjs/icons/MicrophoneStage'
