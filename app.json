@@ -24,7 +24,8 @@
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.dariashinka.PareaApp",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": ["com.android.vending.BILLING"]
     },
     "web": {
       "output": "single",
