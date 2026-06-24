@@ -491,23 +491,23 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
 
       <View style={{ flex: 1 }}>
 
-        {/* Outer SafeAreaView already applies insets.top on both platforms,
-            so only a small fixed gap here — adding insets.top again
-            doubled the spacing on Xiaomi/large-notch Android devices. */}
-        <View style={{ paddingTop: 8, paddingHorizontal: 20, paddingBottom: 12 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+        {/* Compact header — shrunk from 44/50 to 32/36 + tighter padding
+            so the Languages and Interests cards land above the fold on
+            Xiaomi-sized viewports without a scroll. */}
+        <View style={{ paddingTop: 4, paddingHorizontal: 20, paddingBottom: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <MaskedView maskElement={
-              <Text style={{ fontSize: 44, fontFamily: 'ClashDisplay-Bold', letterSpacing: -1, lineHeight: 50, backgroundColor: 'transparent' }}>Profile</Text>
+              <Text style={{ fontSize: 32, fontFamily: 'ClashDisplay-Bold', letterSpacing: -0.8, lineHeight: 36, backgroundColor: 'transparent' }}>Profile</Text>
             }>
               <LinearGradient colors={['#8B5CF6', '#C4B5FD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                <Text style={{ fontSize: 44, fontFamily: 'ClashDisplay-Bold', letterSpacing: -1, lineHeight: 50, opacity: 0 }}>Profile</Text>
+                <Text style={{ fontSize: 32, fontFamily: 'ClashDisplay-Bold', letterSpacing: -0.8, lineHeight: 36, opacity: 0 }}>Profile</Text>
               </LinearGradient>
             </MaskedView>
             <TouchableOpacity
               onPress={() => { setProfilePreviewOpen(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light) }}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 99, backgroundColor: '#F3EEFF' }}>
-              <Feather name="eye" size={14} color="#8B5CF6" />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#8B5CF6' }}>Preview</Text>
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, backgroundColor: '#F3EEFF' }}>
+              <Feather name="eye" size={13} color="#8B5CF6" />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#8B5CF6' }}>Preview</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -517,7 +517,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
         {(() => {
           const SZ = (W - 40 - 16) / 3
           return (
-            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 18 }}>
+            <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 12 }}>
               {[0, 1, 2].map(i => {
                 const uri = userPhotos[i]
                 const isMain = i === 0
@@ -536,7 +536,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                       acts.push({ text: 'Cancel', style: 'cancel' })
                       Alert.alert(isMain ? 'Main photo' : `Photo ${i + 1}`, undefined, acts)
                     }}
-                    style={{ width: SZ, height: SZ * 1.3, borderRadius: 16, overflow: 'hidden', backgroundColor: '#E2E8F0' }}>
+                    style={{ width: SZ, height: SZ * 1.15, borderRadius: 16, overflow: 'hidden', backgroundColor: '#E2E8F0' }}>
                     <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                     {isChecking && <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(99,102,241,0.7)', alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color="#fff" size="small" /></View>}
                     {isRejected && <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(239,68,68,0.75)', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 20 }}>🚫</Text></View>}
@@ -550,36 +550,36 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                     { text: '🖼️  Choose from gallery', onPress: () => pickProfilePhoto(undefined, 'gallery') },
                     { text: 'Cancel', style: 'cancel' },
                   ])}
-                    style={{ width: SZ, height: SZ * 1.3, borderRadius: 16, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    style={{ width: SZ, height: SZ * 1.15, borderRadius: 16, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <Feather name="plus" size={20} color="#94A3B8" />
                     <Text style={{ fontSize: 10, color: '#94A3B8', fontWeight: '700' }}>Add</Text>
                   </TouchableOpacity>
                 )
-                return <View key={i} style={{ width: SZ, height: SZ * 1.3, borderRadius: 16, backgroundColor: '#F1F5F9', opacity: 0.3 }} />
+                return <View key={i} style={{ width: SZ, height: SZ * 1.15, borderRadius: 16, backgroundColor: '#F1F5F9', opacity: 0.3 }} />
               })}
             </View>
           )
         })()}
 
-        <View style={{ alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 }}>
-          <Text style={{ fontSize: 22, fontWeight: '900', color: '#1E1B4B', letterSpacing: -0.3, textAlign: 'center' }}>{nm}{ag ? `, ${ag}` : ''}</Text>
+        <View style={{ alignItems: 'center', paddingHorizontal: 24, marginBottom: 10 }}>
+          <Text style={{ fontSize: 20, fontWeight: '900', color: '#1E1B4B', letterSpacing: -0.3, textAlign: 'center' }}>{nm}{ag ? `, ${ag}` : ''}</Text>
           {userData?.bio ? (
-            <Text style={{ fontSize: 13, color: '#64748B', marginTop: 4, lineHeight: 19, textAlign: 'center' }} numberOfLines={2}>{userData.bio}</Text>
+            <Text style={{ fontSize: 12, color: '#64748B', marginTop: 3, lineHeight: 17, textAlign: 'center' }} numberOfLines={2}>{userData.bio}</Text>
           ) : null}
         </View>
 
-        <View style={{ paddingHorizontal: 20, marginBottom: 24, flexDirection: 'row', gap: 10 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 14, flexDirection: 'row', gap: 10 }}>
           <TouchableOpacity
             onPress={() => { setEditProfileOpen(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light) }}
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F3EEFF', borderRadius: 16, paddingVertical: 14 }}>
-            <Feather name="edit-2" size={16} color="#8B5CF6" />
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#8B5CF6' }}>Edit Profile</Text>
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#F3EEFF', borderRadius: 14, paddingVertical: 11 }}>
+            <Feather name="edit-2" size={14} color="#8B5CF6" />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#8B5CF6' }}>Edit Profile</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => { setSettingsOpen(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light) }}
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#8B5CF6', borderRadius: 16, paddingVertical: 14 }}>
-            <Feather name="settings" size={16} color="#fff" />
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Settings</Text>
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#8B5CF6', borderRadius: 14, paddingVertical: 11 }}>
+            <Feather name="settings" size={14} color="#fff" />
+            <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>Settings</Text>
           </TouchableOpacity>
         </View>
 
