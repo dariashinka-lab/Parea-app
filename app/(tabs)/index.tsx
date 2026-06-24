@@ -7744,7 +7744,14 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   </View>
                 )}
                 {/* Participants sheet — inside event detail modal (iOS: can't nest Modals) */}
-                {eventParticipants && (
+                {eventParticipants && (() => {
+                  // Hide users we've blocked or who've blocked us from the
+                  // participant list. Without this, blocking someone in the
+                  // crew chat still showed them in the event's 'Going' tray.
+                  const visibleMembers = (eventParticipants.members || []).filter((p: any) =>
+                    !(p?.id && (blockedIds.has(p.id) || blockedByIds.has(p.id)))
+                  )
+                  return (
                   <View style={{ ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 100 }}>
                     <TouchableOpacity style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' }} activeOpacity={1} onPress={() => setEventParticipants(null)} />
                     <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 32, maxHeight: '80%' }}>
@@ -7754,13 +7761,13 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       <View style={{ paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(99,102,241,0.08)' }}>
                         <Text style={{ fontSize: 18, fontWeight: '900', color: '#1E1B4B' }}>{eventParticipants.ev.title}</Text>
                         <Text style={{ fontSize: 13, color: '#6366F1', fontWeight: '700', marginTop: 4 }}>
-                          👥 {eventParticipants.members.length} participant{eventParticipants.members.length !== 1 ? 's' : ''} confirmed
+                          👥 {visibleMembers.length} participant{visibleMembers.length !== 1 ? 's' : ''} confirmed
                         </Text>
                       </View>
                       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-                        {eventParticipants.members.length === 0 ? (
+                        {visibleMembers.length === 0 ? (
                           <Text style={{ textAlign: 'center', color: '#94A3B8', fontSize: 14, paddingVertical: 24 }}>No confirmed participants yet</Text>
-                        ) : eventParticipants.members.map((p: any, i: number) => (
+                        ) : visibleMembers.map((p: any, i: number) => (
                           <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 18, backgroundColor: `${p.color}08`, borderWidth: 1, borderColor: `${p.color}20` }}>
                             <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: p.color, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                               {p.photo ? <Image source={{ uri: p.photo }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: 22, color: '#fff', fontWeight: '800' }}>{(p.name || '?')[0]}</Text>}
@@ -7774,7 +7781,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                       </ScrollView>
                     </View>
                   </View>
-                )}
+                  )
+                })()}
               </SafeAreaView>
             </LinearGradient>
           </Modal>
@@ -7857,7 +7865,24 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           etc). Rendered as a Modal here so it works on its own. The inline copy
           above handles taps from inside the chat. */}
       {chatPartnerPreview && !openChat && <ProfilePreviewSheet profile={chatPartnerPreview} onClose={() => setChatPartnerPreview(null)} onBlock={handleBlock} onReport={(p) => setReportTarget(p)} />}
-      {reportTarget && <ReportModal profile={reportTarget} onClose={() => setReportTarget(null)} onSubmit={(reason, details) => handleReport(reportTarget, reason, details)} />}
+      {reportTarget && (
+        <ReportModal
+          profile={reportTarget}
+          onClose={() => setReportTarget(null)}
+          onSubmit={async (reason, details, alsoBlock) => {
+            const reportOk = await handleReport(reportTarget, reason, details)
+            if (!reportOk) return false
+            if (alsoBlock) {
+              try {
+                await handleBlock(reportTarget)
+              } catch (e: any) {
+                console.warn('block-after-report failed:', e?.message)
+              }
+            }
+            return true
+          }}
+        />
+      )}
       <BoostSheet
         visible={!!boostSheetEvent}
         event={boostSheetEvent}

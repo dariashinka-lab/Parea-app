@@ -77,6 +77,13 @@ export function useChats({ userDbId, userName, onChatRemoved, lastReadAtMap }: {
   // after event cleanup completes.
   const blockClearChats = async (profile: any): Promise<{ duoChats: any[]; groupChats: any[] }> => {
     if (!userDbId || !profile?.id) return { duoChats: [], groupChats: [] }
+    // Refuse self-block. Without this guard the upsert succeeds (no FK
+    // constraint preventing reflexive entries), and the cascade wipes the
+    // user's own duo chats + leaves them in their own blockedIds set.
+    if (profile.id === userDbId) {
+      Alert.alert("Can't block yourself", 'Pick a different user.')
+      return { duoChats: [], groupChats: [] }
+    }
     await supabase.from('blocked_users').upsert({ blocker_id: userDbId, blocked_id: profile.id }, { onConflict: 'blocker_id,blocked_id' })
     setBlockedIds(prev => new Set([...prev, profile.id]))
     // Duo chats with this person — delete entirely on both sides. Find them
@@ -126,10 +133,26 @@ export function useChats({ userDbId, userName, onChatRemoved, lastReadAtMap }: {
     return { duoChats, groupChats: [] as any[] }
   }
 
-  const handleReport = async (profile: any, reason: string, details?: string) => {
-    if (!userDbId || !profile?.id) return
-    await supabase.from('reports').insert({ reporter_id: userDbId, reported_id: profile.id, reason, details: details || null })
+  // Returns whether the report submission succeeded so the caller can run
+  // the "also block?" side-effect only on success. Surface the actual
+  // supabase error instead of silently swallowing it — earlier behaviour
+  // meant a failed insert (RLS, network) still showed 'Report submitted'.
+  const handleReport = async (profile: any, reason: string, details?: string): Promise<boolean> => {
+    if (!userDbId || !profile?.id) return false
+    if (profile.id === userDbId) {
+      Alert.alert("Can't report yourself", 'Pick a different user.')
+      return false
+    }
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: userDbId, reported_id: profile.id, reason, details: details || null,
+    })
+    if (error) {
+      console.warn('reports insert error:', JSON.stringify(error))
+      Alert.alert("Couldn't submit report", error.message || 'Try again in a moment.')
+      return false
+    }
     Alert.alert('Report submitted', "Thank you. We'll review it shortly.")
+    return true
   }
 
   // Realtime: when our chat_members row is deleted (e.g., the other user blocked
