@@ -3489,7 +3489,16 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           .from('chat_members')
           .select('profile_id, profiles:profile_id(id, name, photos, color, age)')
           .eq('chat_id', chat.id)
-        if (!members || members.length < 2) continue
+        // Empty chats are orphans — skip. For duo chats, also skip when only
+        // one party remains (the other has left, the chat is a dead end).
+        // For group chats we MUST include solo crews (just the creator
+        // waiting for others) — earlier hard < 2 cut-off was the bug Daria
+        // hit when she opened 'Vintage' VibeCheck, created a fresh crew, and
+        // Open Chat landed her on an empty Chats tab: chat 139 lived in DB
+        // with her as sole member, but the poll skipped it.
+        if (!members || members.length === 0) continue
+        const _isDuoChat = chat.type === 'duo'
+        if (_isDuoChat && members.length < 2) continue
         const otherMembers = members.filter((mem: any) => mem.profile_id !== userData.dbId).map((mem: any) => {
           const p = (mem as any).profiles || {}
           return { id: p.id, name: p.name || 'User', photo: p.photos?.[0] || null, color: p.color || '#818CF8', age: p.age }
