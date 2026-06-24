@@ -1739,53 +1739,55 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // or buyBoost error.
   const boostPurchaseTargetRef = useRef<number | null>(null)
 
-  // Boot Google Play Billing once at app start. The purchase listener
-  // forwards every receipt to validate-boost-receipt, which checks the
-  // signature with Google and flips boost_expires_at in DB. We mirror the
-  // local-state side effects (setDbCommunityEvents, FEATURED pill) here
-  // so the host sees the change without waiting for the 30s feed poll.
+  // Hold the IAP onValidated/onError handlers in refs so the BoostSheet
+  // can lazily start IAP on paid-tap (instead of at app boot, which would
+  // crash in dev-client builds that don't have the native module
+  // compiled in). startIap() runs inside buyBoost() the first time the
+  // user actually goes for a paid Boost.
+  const _boostValidatedRef = useRef<((purchase: any) => Promise<void>) | null>(null)
+  const _boostErrorRef = useRef<((e: any) => void) | null>(null)
   useEffect(() => {
-    if (!userData?.dbId) return
-    startIap({
-      onValidated: async (purchase) => {
-        const eventId = boostPurchaseTargetRef.current
-        boostPurchaseTargetRef.current = null
-        if (typeof eventId !== 'number') {
-          console.warn('iap receipt arrived with no target event — ignoring')
+    if (!userData?.dbId) {
+      _boostValidatedRef.current = null
+      _boostErrorRef.current = null
+      return
+    }
+    _boostValidatedRef.current = async (purchase: any) => {
+      const eventId = boostPurchaseTargetRef.current
+      boostPurchaseTargetRef.current = null
+      if (typeof eventId !== 'number') {
+        console.warn('iap receipt arrived with no target event — ignoring')
+        return
+      }
+      try {
+        const { data, error } = await supabase.functions.invoke('validate-boost-receipt', {
+          body: {
+            purchase_token: purchase.purchaseToken,
+            product_id: purchase.productId || BOOST_SKU,
+            event_id: eventId,
+            user_id: userData.dbId,
+          },
+        })
+        if (error || !(data as any)?.success) {
+          const msg = (data as any)?.error || error?.message || 'Server rejected the receipt.'
+          showToast(msg, "Couldn't activate boost", '⚠️')
           return
         }
-        try {
-          const { data, error } = await supabase.functions.invoke('validate-boost-receipt', {
-            body: {
-              purchase_token: purchase.purchaseToken,
-              product_id: purchase.productId || BOOST_SKU,
-              event_id: eventId,
-              user_id: userData.dbId,
-            },
-          })
-          if (error || !(data as any)?.success) {
-            const msg = (data as any)?.error || error?.message || 'Server rejected the receipt.'
-            showToast(msg, "Couldn't activate boost", '⚠️')
-            return
-          }
-          const expiresIso = (data as any).expires_at
-          setDbCommunityEvents(prev => prev.map((e: any) =>
-            e.id === eventId ? { ...e, boost_expires_at: expiresIso } : e
-          ))
-          showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
-        } catch (e: any) {
-          console.warn('validate-boost-receipt invoke error:', e?.message)
-          showToast(e?.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
-        }
-      },
-      onError: (e) => {
-        boostPurchaseTargetRef.current = null
-        // userCancelled is normal — keep quiet. Everything else gets a toast.
-        if (/cancel/i.test(e?.message || '')) return
-        showToast(e?.message || 'Try again', "Couldn't complete purchase", '⚠️')
-      },
-    })
-    return () => { stopIap() }
+        const expiresIso = (data as any).expires_at
+        setDbCommunityEvents(prev => prev.map((e: any) =>
+          e.id === eventId ? { ...e, boost_expires_at: expiresIso } : e
+        ))
+        showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+      } catch (e: any) {
+        console.warn('validate-boost-receipt invoke error:', e?.message)
+        showToast(e?.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
+      }
+    }
+    _boostErrorRef.current = (e: any) => {
+      boostPurchaseTargetRef.current = null
+      if (/cancel/i.test(e?.message || '')) return
+      showToast(e?.message || 'Try again', "Couldn't complete purchase", '⚠️')
+    }
   }, [userData?.dbId])
 
   // Backfill boosts_used from profiles on login so the free-trial counter
@@ -8009,17 +8011,19 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
           // ─── PAID PATH ───────────────────────────────────────────────────
           // No free Boost left — kick off the real Google Play Billing
-          // purchase. The native dialog shows €2.99, on success the
-          // purchaseUpdatedListener (wired in App._layout via startIap)
-          // sends the receipt to validate-boost-receipt and that edge
-          // function flips boost_expires_at in the DB. The sheet closes
-          // here; the success toast fires from the listener.
+          // purchase. startIap() runs HERE (lazy) instead of at app boot
+          // so dev-client / Expo Go builds without the native module don't
+          // crash on launch. On the Play Store build it boots fine; on
+          // dev-client the require() inside lib/iap.ts throws and
+          // buyBoost() surfaces 'Paid Boost is only available in the Play
+          // Store build.'.
           try {
+            await startIap({
+              onValidated: async (purchase) => { await _boostValidatedRef.current?.(purchase) },
+              onError: (e) => { _boostErrorRef.current?.(e) },
+            })
             boostPurchaseTargetRef.current = evId
             await buyBoost()
-            // BoostSheet closes only after Google's dialog opens — keep it
-            // open if buyBoost throws (e.g., no internet) so the user can
-            // retry without re-opening it.
             setBoostSheetEvent(null)
           } catch (e: any) {
             console.warn('buyBoost error:', e?.message)
