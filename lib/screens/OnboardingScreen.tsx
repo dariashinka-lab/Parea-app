@@ -343,7 +343,12 @@ export function OnboardingScreen({ onBack, onFinish, userId }: { onBack: () => v
         </View>
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <ScrollView contentContainerStyle={s.stepScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* style={{ flex: 1 }} forces the ScrollView itself to fill the
+              available KeyboardAvoidingView height so the bottomBar that
+              follows sticks to the bottom of the screen even when step
+              content is short (step 1 'Tell us about you' barely fills
+              half the viewport — Daria saw Continue floating at ~70%). */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.stepScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
 
               {step === 1 && (
