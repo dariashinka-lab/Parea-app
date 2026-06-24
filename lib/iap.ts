@@ -11,23 +11,37 @@
 //      'consumable' products (Boost is one — they can buy it again every
 //      48h) we set isConsumable: true so Play re-grants the SKU.
 //
-// Keep all IAP code in one file so the BoostSheet caller stays small.
+// LAZY LOAD: react-native-iap 15.x is a Nitro-based native module. The
+// dev-client APK Daria runs day-to-day doesn't include those native
+// modules until she rebuilds it — so importing the module at the top of
+// the file crashes the dev-client on launch ('Failed to get NitroModules').
+// Wrap require() in a try/catch so the module loads only if the native
+// side is present; otherwise the free-Boost path still works and the
+// paid path throws a clear error when tapped.
 
 import { Platform } from 'react-native'
-import {
-  initConnection,
-  endConnection,
-  requestPurchase,
-  purchaseUpdatedListener,
-  purchaseErrorListener,
-  finishTransaction,
-  type Purchase,
-  type PurchaseError,
-} from 'react-native-iap'
 
 export const BOOST_SKU = 'parea_boost_48h'
 
 type ListenerHandle = { remove: () => void }
+type Purchase = any
+type PurchaseError = any
+
+let _iap: any = null
+let _iapLoadError: Error | null = null
+function getIap(): any | null {
+  if (_iap) return _iap
+  if (_iapLoadError) return null
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    _iap = require('react-native-iap')
+    return _iap
+  } catch (e: any) {
+    _iapLoadError = e
+    console.warn('react-native-iap not available (likely dev-client without the native module yet):', e?.message)
+    return null
+  }
+}
 
 let _started = false
 let _purchaseSub: ListenerHandle | null = null
@@ -37,24 +51,27 @@ let _errorSub: ListenerHandle | null = null
  * Boot Play Billing once at app start. Idempotent — calling twice is a no-op.
  * onValidated is invoked with the raw Purchase object whenever Google reports
  * a successful purchase; the BoostSheet caller passes a handler that ships
- * the receipt to the Supabase edge function.
+ * the receipt to the Supabase edge function. No-op on web, dev-client
+ * builds without the native module, or if initConnection throws.
  */
 export async function startIap(handlers: {
   onValidated: (purchase: Purchase) => Promise<void>
   onError?: (e: PurchaseError) => void
 }) {
   if (_started || Platform.OS === 'web') return
+  const iap = getIap()
+  if (!iap) return
   try {
-    await initConnection()
-    _purchaseSub = purchaseUpdatedListener(async (purchase: Purchase) => {
+    await iap.initConnection()
+    _purchaseSub = iap.purchaseUpdatedListener(async (purchase: Purchase) => {
       try {
         await handlers.onValidated(purchase)
-        await finishTransaction({ purchase, isConsumable: true })
+        await iap.finishTransaction({ purchase, isConsumable: true })
       } catch (e: any) {
         console.warn('iap purchase handler error:', e?.message)
       }
     })
-    _errorSub = purchaseErrorListener((e: PurchaseError) => {
+    _errorSub = iap.purchaseErrorListener((e: PurchaseError) => {
       if (handlers.onError) handlers.onError(e)
       else console.warn('iap purchase error:', e.message)
     })
@@ -65,21 +82,26 @@ export async function startIap(handlers: {
 }
 
 export async function stopIap() {
+  const iap = _iap
   try { _purchaseSub?.remove(); _purchaseSub = null } catch {}
   try { _errorSub?.remove(); _errorSub = null } catch {}
-  try { if (_started) await endConnection() } catch {}
+  try { if (_started && iap) await iap.endConnection() } catch {}
   _started = false
 }
 
 /**
  * Fire the native purchase flow for the Boost product. Returns immediately
  * — the actual receipt arrives on the purchaseUpdatedListener registered
- * in startIap(). The caller should disable the Boost button while a
- * purchase is in flight so a double-tap doesn't open two dialogs.
+ * in startIap(). Throws a clear error if the native module isn't loaded
+ * yet (dev-client without billing) so the caller can surface it to the user.
  */
 export async function buyBoost(): Promise<void> {
   if (Platform.OS === 'web') {
     throw new Error('In-app purchases are not available on the web build.')
   }
-  await requestPurchase({ skus: [BOOST_SKU] })
+  const iap = getIap()
+  if (!iap) {
+    throw new Error('Paid Boost is only available in the Play Store build.')
+  }
+  await iap.requestPurchase({ skus: [BOOST_SKU] })
 }
