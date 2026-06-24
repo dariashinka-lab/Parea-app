@@ -111,11 +111,16 @@ export async function buyBoost(): Promise<void> {
   // Without this getProducts call, requestPurchase has no product info and
   // Google Play Billing rejects the request with 'Missing purchase request
   // configuration' — even though the product is Active in Play Console.
+  let products: any[] = []
   try {
-    await iap.getProducts({ skus: [BOOST_SKU] })
+    products = await iap.getProducts({ skus: [BOOST_SKU] })
+    console.log('iap.getProducts result:', JSON.stringify(products))
   } catch (e: any) {
-    console.warn('iap getProducts error:', e?.message)
-    throw new Error('Boost is not yet available. Try again in a few minutes.')
+    console.warn('iap.getProducts threw:', e?.message, e?.code)
+    throw new Error(`Google Play: ${e?.message || 'cannot fetch product'}`)
+  }
+  if (!Array.isArray(products) || products.length === 0) {
+    throw new Error(`Boost product not found. The product may still be propagating on Google Play (can take a few hours after creation). SKU: ${BOOST_SKU}`)
   }
   await iap.requestPurchase({ skus: [BOOST_SKU] })
 }
