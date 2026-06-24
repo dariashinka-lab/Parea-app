@@ -94,6 +94,10 @@ export async function stopIap() {
  * — the actual receipt arrives on the purchaseUpdatedListener registered
  * in startIap(). Throws a clear error if the native module isn't loaded
  * yet (dev-client without billing) so the caller can surface it to the user.
+ *
+ * IMPORTANT: react-native-iap 15.x (Nitro) requires getProducts() to be
+ * called first so the SKU is loaded into the Billing library's cache,
+ * otherwise requestPurchase throws 'Missing purchase request configuration'.
  */
 export async function buyBoost(): Promise<void> {
   if (Platform.OS === 'web') {
@@ -102,6 +106,16 @@ export async function buyBoost(): Promise<void> {
   const iap = getIap()
   if (!iap) {
     throw new Error('Paid Boost is only available in the Play Store build.')
+  }
+  // Warm the SKU into the library cache before requesting the purchase.
+  // Without this getProducts call, requestPurchase has no product info and
+  // Google Play Billing rejects the request with 'Missing purchase request
+  // configuration' — even though the product is Active in Play Console.
+  try {
+    await iap.getProducts({ skus: [BOOST_SKU] })
+  } catch (e: any) {
+    console.warn('iap getProducts error:', e?.message)
+    throw new Error('Boost is not yet available. Try again in a few minutes.')
   }
   await iap.requestPurchase({ skus: [BOOST_SKU] })
 }
