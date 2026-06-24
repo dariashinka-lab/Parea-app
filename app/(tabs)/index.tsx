@@ -27,6 +27,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import ConfettiCannon from 'react-native-confetti-cannon'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../../lib/supabase'
+import { startIap, stopIap, buyBoost, BOOST_SKU } from '../../lib/iap'
 import { BreathingButton } from '../../lib/components/BreathingButton'
 import { AuroraBg } from '../../lib/components/AuroraBg'
 import { DobBottomSheet } from '../../lib/components/DobBottomSheet'
@@ -1732,6 +1733,60 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // survives reload — gives Daria a clean transition to paid in v2.
   const FREE_BOOST_ALLOWANCE = 1
   const [boostsUsed, setBoostsUsed] = useState(0)
+  // Track which event the in-flight Google Play purchase is for, so the
+  // purchaseUpdatedListener can flip boost_expires_at on the right row
+  // when Google returns the receipt asynchronously. Cleared on success
+  // or buyBoost error.
+  const boostPurchaseTargetRef = useRef<number | null>(null)
+
+  // Boot Google Play Billing once at app start. The purchase listener
+  // forwards every receipt to validate-boost-receipt, which checks the
+  // signature with Google and flips boost_expires_at in DB. We mirror the
+  // local-state side effects (setDbCommunityEvents, FEATURED pill) here
+  // so the host sees the change without waiting for the 30s feed poll.
+  useEffect(() => {
+    if (!userData?.dbId) return
+    startIap({
+      onValidated: async (purchase) => {
+        const eventId = boostPurchaseTargetRef.current
+        boostPurchaseTargetRef.current = null
+        if (typeof eventId !== 'number') {
+          console.warn('iap receipt arrived with no target event — ignoring')
+          return
+        }
+        try {
+          const { data, error } = await supabase.functions.invoke('validate-boost-receipt', {
+            body: {
+              purchase_token: purchase.purchaseToken,
+              product_id: purchase.productId || BOOST_SKU,
+              event_id: eventId,
+              user_id: userData.dbId,
+            },
+          })
+          if (error || !(data as any)?.success) {
+            const msg = (data as any)?.error || error?.message || 'Server rejected the receipt.'
+            showToast(msg, "Couldn't activate boost", '⚠️')
+            return
+          }
+          const expiresIso = (data as any).expires_at
+          setDbCommunityEvents(prev => prev.map((e: any) =>
+            e.id === eventId ? { ...e, boost_expires_at: expiresIso } : e
+          ))
+          showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+        } catch (e: any) {
+          console.warn('validate-boost-receipt invoke error:', e?.message)
+          showToast(e?.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
+        }
+      },
+      onError: (e) => {
+        boostPurchaseTargetRef.current = null
+        // userCancelled is normal — keep quiet. Everything else gets a toast.
+        if (/cancel/i.test(e?.message || '')) return
+        showToast(e?.message || 'Try again', "Couldn't complete purchase", '⚠️')
+      },
+    })
+    return () => { stopIap() }
+  }, [userData?.dbId])
 
   // Backfill boosts_used from profiles on login so the free-trial counter
   // survives reinstall / clearing AsyncStorage. AsyncStorage hydrate above
@@ -7911,55 +7966,66 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         onConfirm={async () => {
           const evId = boostSheetEvent?.id
           const freeLeft = Math.max(0, FREE_BOOST_ALLOWANCE - boostsUsed)
-          if (freeLeft === 0) {
-            showToast("We'll let you know when paid boosts go live", 'Coming soon', '⏳')
+          if (typeof evId !== 'number') { setBoostSheetEvent(null); return }
+
+          // ─── FREE PATH ───────────────────────────────────────────────────
+          // One free Boost per account — no Google Play dialog, just a
+          // direct DB UPDATE + boosts_used++.
+          if (freeLeft > 0) {
+            try {
+              const expiresIso = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+              const { data: updatedRows, error: boostErr } = await supabase
+                .from('community_events')
+                .update({ boost_expires_at: expiresIso })
+                .eq('id', evId)
+                .select('id, boost_expires_at')
+              if (boostErr) {
+                console.warn('boost update error:', JSON.stringify(boostErr))
+                showToast(boostErr.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
+                setBoostSheetEvent(null)
+                return
+              }
+              if (!updatedRows || updatedRows.length === 0) {
+                console.warn('boost update affected 0 rows — RLS likely rejected. eventId=', evId, 'userDbId=', userData?.dbId)
+                showToast('You are not the host of this plan', "Couldn't activate boost", '⚠️')
+                setBoostSheetEvent(null)
+                return
+              }
+              setDbCommunityEvents(prev => prev.map((e: any) =>
+                e.id === evId ? { ...e, boost_expires_at: expiresIso } : e
+              ))
+              if (userData?.dbId) {
+                await supabase.from('profiles').update({ boosts_used: boostsUsed + 1 }).eq('id', userData.dbId)
+              }
+              setBoostsUsed(prev => prev + 1)
+              showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+            } catch (e: any) {
+              console.warn('boost exception:', e?.message)
+              showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
+            }
             setBoostSheetEvent(null)
             return
           }
-          if (typeof evId !== 'number') { setBoostSheetEvent(null); return }
-          // Real backend wiring — write to DB so OTHER users see FEATURED, not
-          // just the booster. boost_expires_at = now + 48h.
+
+          // ─── PAID PATH ───────────────────────────────────────────────────
+          // No free Boost left — kick off the real Google Play Billing
+          // purchase. The native dialog shows €2.99, on success the
+          // purchaseUpdatedListener (wired in App._layout via startIap)
+          // sends the receipt to validate-boost-receipt and that edge
+          // function flips boost_expires_at in the DB. The sheet closes
+          // here; the success toast fires from the listener.
           try {
-            const expiresIso = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-            // .select() so we get the updated row back. Without it, supabase
-            // doesn't tell us whether RLS silently filtered the UPDATE to 0
-            // rows — and we'd flash 'Boost activated' while boost_expires_at
-            // stayed NULL in DB (Daria's reproducer: host_id matches but
-            // auth.uid() check failed for whatever reason).
-            const { data: updatedRows, error: boostErr } = await supabase
-              .from('community_events')
-              .update({ boost_expires_at: expiresIso })
-              .eq('id', evId)
-              .select('id, boost_expires_at')
-            if (boostErr) {
-              console.warn('boost update error:', JSON.stringify(boostErr))
-              showToast(boostErr.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
-              setBoostSheetEvent(null)
-              return
-            }
-            if (!updatedRows || updatedRows.length === 0) {
-              console.warn('boost update affected 0 rows — RLS likely rejected (host_id mismatch?). eventId=', evId, 'userDbId=', userData?.dbId)
-              showToast('You are not the host of this plan', "Couldn't activate boost", '⚠️')
-              setBoostSheetEvent(null)
-              return
-            }
-            // Update local feed copy so the FEATURED pill appears instantly,
-            // without waiting for the next poll.
-            setDbCommunityEvents(prev => prev.map((e: any) =>
-              e.id === evId ? { ...e, boost_expires_at: expiresIso } : e
-            ))
-            // Increment the free-trial counter in profiles so the allowance
-            // survives reinstall — survives clearing AsyncStorage too.
-            if (userData?.dbId) {
-              await supabase.from('profiles').update({ boosts_used: boostsUsed + 1 }).eq('id', userData.dbId)
-            }
-            setBoostsUsed(prev => prev + 1)
-            showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+            boostPurchaseTargetRef.current = evId
+            await buyBoost()
+            // BoostSheet closes only after Google's dialog opens — keep it
+            // open if buyBoost throws (e.g., no internet) so the user can
+            // retry without re-opening it.
+            setBoostSheetEvent(null)
           } catch (e: any) {
-            console.warn('boost exception:', e?.message)
-            showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
+            console.warn('buyBoost error:', e?.message)
+            boostPurchaseTargetRef.current = null
+            showToast(e?.message || 'Try again', "Couldn't open purchase", '⚠️')
           }
-          setBoostSheetEvent(null)
         }}
       />
 
