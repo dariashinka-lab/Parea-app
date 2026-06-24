@@ -111,6 +111,38 @@ create table if not exists crew_invites (
   unique(event_ref_id, inviter_id, invitee_id)
 );
 
+-- ─── BLOCKED USERS ──────────────────────────────────────────────────────────
+create table if not exists blocked_users (
+  blocker_id uuid references profiles(id) on delete cascade not null,
+  blocked_id uuid references profiles(id) on delete cascade not null,
+  created_at timestamptz default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+create index if not exists blocked_users_blocker_idx on blocked_users(blocker_id);
+create index if not exists blocked_users_blocked_idx on blocked_users(blocked_id);
+
+-- ─── REPORTS ────────────────────────────────────────────────────────────────
+create table if not exists reports (
+  id bigserial primary key,
+  reporter_id uuid references profiles(id) on delete cascade not null,
+  reported_id uuid references profiles(id) on delete cascade not null,
+  reason text not null,
+  details text,
+  reviewed boolean default false,
+  reviewed_by uuid references profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz default now(),
+  check (reporter_id <> reported_id),
+  unique (reporter_id, reported_id, reason)
+);
+create index if not exists reports_reported_idx on reports(reported_id);
+create index if not exists reports_unreviewed_idx on reports(created_at desc) where reviewed = false;
+
+-- ─── ADMIN BAN COLUMN ───────────────────────────────────────────────────────
+alter table profiles add column if not exists is_banned boolean default false;
+create index if not exists profiles_is_banned_idx on profiles(is_banned) where is_banned = true;
+
 -- ─── DISABLE RLS (for development) ───────────────────────────────────────────
 alter table profiles disable row level security;
 alter table events disable row level security;
@@ -121,3 +153,23 @@ alter table messages disable row level security;
 alter table notifications disable row level security;
 alter table event_attendees disable row level security;
 alter table crew_invites disable row level security;
+alter table blocked_users disable row level security;
+alter table reports disable row level security;
+
+-- ─── PROD RLS NOTE ──────────────────────────────────────────────────────────
+-- Production policies on blocked_users / reports live only in the prod DB
+-- and MUST use the profile-lookup pattern, not direct auth.uid() comparison
+-- (which broke host_can_boost_own_event silently — June 2026 bug). If
+-- re-creating from this schema, re-apply:
+--   create policy "read own blocks" on blocked_users for select using (
+--     blocker_id = (select id from profiles where auth_id = auth.uid())
+--     or blocked_id = (select id from profiles where auth_id = auth.uid()));
+--   create policy "user can block" on blocked_users for insert with check (
+--     blocker_id = (select id from profiles where auth_id = auth.uid()));
+--   create policy "user can unblock" on blocked_users for delete using (
+--     blocker_id = (select id from profiles where auth_id = auth.uid()));
+--   create policy "user can report" on reports for insert with check (
+--     reporter_id = (select id from profiles where auth_id = auth.uid()));
+-- Realtime publication must include both for client-side cleanup:
+--   alter publication supabase_realtime add table blocked_users;
+--   alter publication supabase_realtime add table reports;

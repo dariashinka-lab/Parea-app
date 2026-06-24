@@ -4645,6 +4645,17 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
   const handleSend = () => {
     if (!chatInput.trim() || !openChat) return
+    // Pre-send block guard for duo chats. RLS would reject the insert
+    // anyway but only after a round-trip — show the alert immediately
+    // and skip the optimistic 'You: …' message so the user doesn't see
+    // it vanish on rollback.
+    if (openChat.type === 'duo') {
+      const partnerId = openChat.partnerProfile?.id || (openChat.memberProfiles || []).find((p: any) => p.id !== userData?.dbId)?.id
+      if (partnerId && (blockedIds.has(partnerId) || blockedByIds.has(partnerId))) {
+        Alert.alert("Can't send", blockedIds.has(partnerId) ? "You've blocked this user. Unblock them in Profile → Blocked to chat again." : "You can't message this user.")
+        return
+      }
+    }
     const text = chatInput.trim()
     // Snapshot reply from ref to bypass stale state closure when user taps Send
     // before React commits the long-press setReplyTo update.
