@@ -58,7 +58,15 @@ export function ConfirmDialog({
         <Pressable onPress={onClose} style={{ position: 'absolute', inset: 0 } as any} />
         <Animated.View style={{ width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 24, padding: 24, transform: [{ scale }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 12 }}>
           <Text style={{ fontSize: 20, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: 0, textAlign: 'center', lineHeight: 28 }}>
-            {title}
+            {/* Render any double-quote chars (curly or straight) at a smaller
+                size so they don't overpower the wrapped name. ClashDisplay-Bold
+                glyphs read tall — quotes at full title size visually merged
+                with the surrounding word. */}
+            {title.split(/(["“”])/).map((part, i) =>
+              /["“”]/.test(part)
+                ? <Text key={i} style={{ fontSize: 14 }}>{part}</Text>
+                : part
+            )}
           </Text>
           {!!body && (
             <Text style={{ fontSize: 14, fontFamily: 'Outfit-Regular', color: '#64748B', textAlign: 'center', lineHeight: 20, marginTop: 10 }}>
