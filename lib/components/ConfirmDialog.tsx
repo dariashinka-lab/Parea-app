@@ -57,17 +57,31 @@ export function ConfirmDialog({
       <Animated.View style={{ flex: 1, backgroundColor: 'rgba(5,3,15,0.6)', opacity, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
         <Pressable onPress={onClose} style={{ position: 'absolute', inset: 0 } as any} />
         <Animated.View style={{ width: '100%', maxWidth: 360, backgroundColor: '#fff', borderRadius: 24, padding: 24, transform: [{ scale }], shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 12 }}>
-          <Text style={{ fontSize: 20, fontFamily: 'ClashDisplay-Bold', color: '#1E1B4B', letterSpacing: 0, textAlign: 'center', lineHeight: 28 }}>
-            {/* Render any double-quote chars (curly or straight) at a smaller
-                size so they don't overpower the wrapped name. ClashDisplay-Bold
-                glyphs read tall — quotes at full title size visually merged
-                with the surrounding word. */}
-            {title.split(/(["“”])/).map((part, i) =>
-              /["“”]/.test(part)
-                ? <Text key={i} style={{ fontSize: 14 }}>{part}</Text>
-                : part
-            )}
-          </Text>
+          {/* Render quote characters smaller AND anchored to the top of the
+              line so they sit at typographic quote-height (top-shoulder of
+              the line), not center-merged with the wrapped name. A flex row
+              with alignItems: flex-start does the vertical alignment, and
+              the smaller fontSize (14 vs title's 20) keeps them visually
+              quieter. Falls back gracefully when the title has no quotes —
+              the row simply lays out a single full-size segment. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
+            {title.split(/(["“”])/).filter(Boolean).map((part, i) => {
+              const isQuote = /["“”]/.test(part)
+              return (
+                <Text
+                  key={i}
+                  style={{
+                    fontSize: isQuote ? 14 : 20,
+                    fontFamily: 'ClashDisplay-Bold',
+                    color: '#1E1B4B',
+                    letterSpacing: 0,
+                    lineHeight: isQuote ? 22 : 28,
+                  }}>
+                  {part}
+                </Text>
+              )
+            })}
+          </View>
           {!!body && (
             <Text style={{ fontSize: 14, fontFamily: 'Outfit-Regular', color: '#64748B', textAlign: 'center', lineHeight: 20, marginTop: 10 }}>
               {body}
@@ -76,8 +90,8 @@ export function ConfirmDialog({
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
             <TouchableOpacity onPress={onClose} activeOpacity={0.85}
-              style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#475569' }}>{cancelText}</Text>
+              style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: '#E2E8F0', borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#1E293B' }}>{cancelText}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleConfirm} activeOpacity={0.88} style={{ flex: 1, borderRadius: 14, overflow: 'hidden' }}>

@@ -14,6 +14,7 @@ import { ChatTeardrop, Car as PhCar, MapPin as PhMapPin, Users as PhUsers, Users
 import { BoostIcon } from '../components/BoostIcon'
 import { ProfilePreviewSheet } from '../components/ProfilePreviewSheet'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ActionSheet } from '../components/ActionSheet'
 import { MOCK_EVENTS, VIBE_FORMAT_MAX, VIBE_FORMAT_THRESHOLD, FLAG_MAP, CATEGORY_COLOR, CATEGORY_BG } from '../feed-constants'
 import { isEventPast, prettyEventTime, parseEventDateTime } from '../feed-helpers'
 
@@ -109,6 +110,9 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   const [cancelEventTarget, setCancelEventTarget] = useState<any>(null)
   // Same pattern for the 'Can't make it' leave flow on attending events.
   const [leaveEventTarget, setLeaveEventTarget] = useState<any>(null)
+  // The three-dots overflow menu on an attending event card. ActionSheet
+  // because we need >2 options (Update plans + Can't make it + Cancel).
+  const [moreSheetTarget, setMoreSheetTarget] = useState<any>(null)
 
   const openCrewSheet = (ev: any, profiles: any[], found: number, cap: number) => {
     setCrewSheet({ ev, profiles, found, cap })
@@ -485,16 +489,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                         <TouchableOpacity
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                            Alert.alert(ev.title, 'What do you want to do?', [
-                              { text: 'Update my plans', onPress: () => onUpdatePlans?.(ev) },
-                              { text: "Can't make it", style: 'destructive', onPress: () => {
-                                Alert.alert('Leave event?', `Your spot will be freed and${ev.type === 'community' ? ' the group will be notified' : ' your details will be removed'}.`, [
-                                  { text: 'Yes, leave', style: 'destructive', onPress: () => onLeaveEvent?.(ev) },
-                                  { text: 'Cancel', style: 'cancel' },
-                                ])
-                              }},
-                              { text: 'Cancel', style: 'cancel' },
-                            ])
+                            setMoreSheetTarget(ev)
                           }}
                           style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(100,116,139,0.08)', alignItems: 'center', justifyContent: 'center' }}>
                           <MoreHorizontal size={16} color="#94A3B8" />
@@ -970,6 +965,28 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
           if (ev) onLeaveEvent?.(ev)
         }}
         onClose={() => setLeaveEventTarget(null)}
+      />
+      <ActionSheet
+        visible={!!moreSheetTarget}
+        title={moreSheetTarget?.title}
+        body="What do you want to do?"
+        actions={[
+          {
+            key: 'update',
+            label: 'Update my plans',
+            onPress: () => { const ev = moreSheetTarget; if (ev) onUpdatePlans?.(ev) },
+          },
+          {
+            key: 'leave',
+            label: "Can't make it",
+            destructive: true,
+            // Chain into the existing leaveEventTarget ConfirmDialog so the
+            // 'are you sure' step stays consistent with the prominent
+            // 'Can't make it' button below the card.
+            onPress: () => { const ev = moreSheetTarget; if (ev) setLeaveEventTarget(ev) },
+          },
+        ]}
+        onClose={() => setMoreSheetTarget(null)}
       />
     </View>
   )
