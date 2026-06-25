@@ -8,13 +8,12 @@ import MaskedView from '@react-native-masked-view/masked-view'
 import * as Haptics from 'expo-haptics'
 import {
   CalendarDays, MessageCircle, Crown, Trash2, Users, ChevronRight, CheckCircle,
-  Clock, MoreHorizontal, X, Check, User,
+  Clock, X, Check, User,
 } from 'lucide-react-native'
 import { ChatTeardrop, Car as PhCar, MapPin as PhMapPin, Users as PhUsers, UsersThree as PhUsersThree, Confetti as PhConfetti, HandWaving as PhHand, Sparkle as PhSparkle } from '../phosphor-icons'
 import { BoostIcon } from '../components/BoostIcon'
 import { ProfilePreviewSheet } from '../components/ProfilePreviewSheet'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ActionSheet } from '../components/ActionSheet'
 import { MOCK_EVENTS, VIBE_FORMAT_MAX, VIBE_FORMAT_THRESHOLD, FLAG_MAP, CATEGORY_COLOR, CATEGORY_BG } from '../feed-constants'
 import { isEventPast, prettyEventTime, parseEventDateTime } from '../feed-helpers'
 
@@ -110,9 +109,6 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   const [cancelEventTarget, setCancelEventTarget] = useState<any>(null)
   // Same pattern for the 'Can't make it' leave flow on attending events.
   const [leaveEventTarget, setLeaveEventTarget] = useState<any>(null)
-  // The three-dots overflow menu on an attending event card. ActionSheet
-  // because we need >2 options (Update plans + Can't make it + Cancel).
-  const [moreSheetTarget, setMoreSheetTarget] = useState<any>(null)
 
   const openCrewSheet = (ev: any, profiles: any[], found: number, cap: number) => {
     setCrewSheet({ ev, profiles, found, cap })
@@ -481,19 +477,14 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                           </View>
                         </View>
                       </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, backgroundColor: statusBg }}>
-                          <StatusIcon size={11} color={statusColor} strokeWidth={2.5} />
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: statusColor }}>{statusLabel}</Text>
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                            setMoreSheetTarget(ev)
-                          }}
-                          style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(100,116,139,0.08)', alignItems: 'center', justifyContent: 'center' }}>
-                          <MoreHorizontal size={16} color="#94A3B8" />
-                        </TouchableOpacity>
+                      {/* Status pill — three-dots overflow removed: only useful
+                          action was 'Update my plans' which jarringly switched
+                          tabs to Home. Destructive leave is already a
+                          prominent 'Can't make it' button below the card, so
+                          the menu was redundant. */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, backgroundColor: statusBg }}>
+                        <StatusIcon size={11} color={statusColor} strokeWidth={2.5} />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: statusColor }}>{statusLabel}</Text>
                       </View>
                     </View>
 
@@ -965,28 +956,6 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
           if (ev) onLeaveEvent?.(ev)
         }}
         onClose={() => setLeaveEventTarget(null)}
-      />
-      <ActionSheet
-        visible={!!moreSheetTarget}
-        title={moreSheetTarget?.title}
-        body="What do you want to do?"
-        actions={[
-          {
-            key: 'update',
-            label: 'Update my plans',
-            onPress: () => { const ev = moreSheetTarget; if (ev) onUpdatePlans?.(ev) },
-          },
-          {
-            key: 'leave',
-            label: "Can't make it",
-            destructive: true,
-            // Chain into the existing leaveEventTarget ConfirmDialog so the
-            // 'are you sure' step stays consistent with the prominent
-            // 'Can't make it' button below the card.
-            onPress: () => { const ev = moreSheetTarget; if (ev) setLeaveEventTarget(ev) },
-          },
-        ]}
-        onClose={() => setMoreSheetTarget(null)}
       />
     </View>
   )
