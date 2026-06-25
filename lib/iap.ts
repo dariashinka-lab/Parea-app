@@ -128,5 +128,12 @@ export async function buyBoost(): Promise<void> {
   if (!Array.isArray(products) || products.length === 0) {
     throw new Error(`Boost product not found. The product may still be propagating on Google Play (can take a few hours after creation). SKU: ${BOOST_SKU}`)
   }
-  await iap.requestPurchase({ google: { skus: [BOOST_SKU] } })
+  // The full 15.x signature is { request: { google: { skus } }, type: 'in-app' }.
+  // Skipping the outer { request, type } wrapper makes the native side see an
+  // empty SKU list and throw 'No SKUs provided' even though the inner shape
+  // is right.
+  await iap.requestPurchase({
+    request: { google: { skus: [BOOST_SKU] } },
+    type: 'in-app',
+  })
 }
