@@ -107,6 +107,8 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   const [memberPreview, setMemberPreview] = useState<any>(null)
   // Branded cancel-event confirmation (replaces native Alert.alert).
   const [cancelEventTarget, setCancelEventTarget] = useState<any>(null)
+  // Same pattern for the 'Can't make it' leave flow on attending events.
+  const [leaveEventTarget, setLeaveEventTarget] = useState<any>(null)
 
   const openCrewSheet = (ev: any, profiles: any[], found: number, cap: number) => {
     setCrewSheet({ ev, profiles, found, cap })
@@ -603,19 +605,17 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                       </TouchableOpacity>
                     </View>
 
-                    {/* Can't make it — prominent */}
+                    {/* Can't make it — soft neutral ghost, no harsh red.
+                        Opens the branded ConfirmDialog (not native Alert) so
+                        the leave-flow matches Cancel-event in tone. */}
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                        Alert.alert("Can't make it?", `Your spot will be freed and${ev.type === 'community' ? ' the group will be notified' : ' your details will be removed'}.`, [
-                          { text: "Yes, leave", style: 'destructive', onPress: () => onLeaveEvent?.(ev) },
-                          { text: 'Keep my plans', style: 'cancel' },
-                        ])
+                        setLeaveEventTarget(ev)
                       }}
-                      style={{ marginTop: 10, paddingVertical: 10, borderRadius: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, backgroundColor: 'rgba(239,68,68,0.05)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.12)' }}>
-                      <X size={13} color="#ef4444" />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#ef4444' }}>Can't make it</Text>
+                      style={{ marginTop: 10, paddingVertical: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(100,116,139,0.06)', borderWidth: 1, borderColor: 'rgba(100,116,139,0.14)' }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B' }}>Can't make it</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -956,6 +956,20 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
           if (ev) onCancelHostedEvent?.(ev)
         }}
         onClose={() => setCancelEventTarget(null)}
+      />
+      <ConfirmDialog
+        visible={!!leaveEventTarget}
+        title="Can't make it?"
+        body={`Your spot will be freed and${leaveEventTarget?.type === 'community' ? ' the group will be notified' : ' your details will be removed'}.`}
+        confirmText="Yes, leave"
+        cancelText="Keep my plans"
+        destructive
+        onConfirm={() => {
+          const ev = leaveEventTarget
+          setLeaveEventTarget(null)
+          if (ev) onLeaveEvent?.(ev)
+        }}
+        onClose={() => setLeaveEventTarget(null)}
       />
     </View>
   )
