@@ -234,8 +234,16 @@ export function LandingScreen({ onCreateAccount, onLogin, onGoogleSignIn, onAppl
         <Animated.View
           style={[ls.headlineBlock, { opacity: headlineOpacity, transform: [{ translateY: headlineY }] }]}>
           {(() => {
-            const heroFz = Math.round(hFz * 1.15)
-            const heroLh = Math.round(hLh * 1.1)
+            // Slides with a third headline line ('Find your / crew / for any plan.')
+            // would otherwise stack one extra line of huge type underneath, push
+            // the marginTop:auto bottom block upward, and land the CTA visibly
+            // higher than on 2-line slides. Scale the headline down on 3-line
+            // slides so the total block height matches a 2-line slide and the
+            // CTA stays at the same screen level across all three slides.
+            const hasLine3 = !!cur.line3
+            const scale = hasLine3 ? 0.78 : 1
+            const heroFz = Math.round(hFz * 1.15 * scale)
+            const heroLh = Math.round(hLh * 1.1 * scale)
             // Both the Text lineHeight AND the mask container height must
             // be generous enough to fit descenders ('y' in 'got you', 'p'
             // in 'happening', 'g' in 'got'). RN clips descenders below the
