@@ -126,53 +126,71 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 })
   }
+  // We always respond 200 so the supabase-js client can read the body. The
+  // outer success/error contract is in the JSON body itself ({ success,
+  // error }), not the HTTP status. supabase.functions.invoke swallows the
+  // body on non-2xx and surfaces a generic 'Edge Function returned a
+  // non-2xx status code', which hid the real reason during testing.
   try {
     const body = await req.json()
     const { purchase_token, product_id, event_id, user_id } = body || {}
     if (!purchase_token || !product_id || typeof event_id !== 'number' || !user_id) {
-      return json({ error: 'Missing purchase_token / product_id / event_id / user_id' }, 400)
+      return json({ success: false, error: 'Missing purchase_token / product_id / event_id / user_id', step: 'input' })
     }
     if (product_id !== BOOST_SKU) {
-      return json({ error: `Unexpected product_id ${product_id}` }, 400)
+      return json({ success: false, error: `Unexpected product_id ${product_id}`, step: 'input' })
     }
 
     const saRaw = Deno.env.get('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON')
     const packageName = Deno.env.get('GOOGLE_PLAY_PACKAGE_NAME')
     if (!saRaw || !packageName) {
-      return json({ error: 'Server is missing Google Play credentials.' }, 500)
+      return json({ success: false, error: 'Server is missing Google Play credentials.', step: 'env' })
     }
-    const sa = JSON.parse(saRaw) as ServiceAccountJson
+    let sa: ServiceAccountJson
+    try {
+      sa = JSON.parse(saRaw) as ServiceAccountJson
+    } catch (e) {
+      return json({ success: false, error: `Service account JSON parse failed: ${(e as Error).message}`, step: 'sa-parse' })
+    }
 
-    const accessToken = await getGoogleAccessToken(sa)
-    const purchase = await validateWithGoogle({
-      accessToken,
-      packageName,
-      productId: product_id,
-      purchaseToken: purchase_token,
-    })
+    let accessToken: string
+    try {
+      accessToken = await getGoogleAccessToken(sa)
+    } catch (e) {
+      return json({ success: false, error: `Google OAuth failed: ${(e as Error).message}`, step: 'oauth' })
+    }
+
+    let purchase: { purchaseState: number; acknowledgementState: number; orderId?: string }
+    try {
+      purchase = await validateWithGoogle({
+        accessToken,
+        packageName,
+        productId: product_id,
+        purchaseToken: purchase_token,
+      })
+    } catch (e) {
+      return json({ success: false, error: `Google purchases.products.get failed: ${(e as Error).message}`, step: 'google-validate' })
+    }
     // purchaseState: 0 purchased, 1 cancelled, 2 pending
     if (purchase.purchaseState !== 0) {
-      return json({ error: `Purchase not in 'purchased' state (state=${purchase.purchaseState})` }, 400)
+      return json({ success: false, error: `Purchase not in 'purchased' state (state=${purchase.purchaseState})`, step: 'purchase-state' })
     }
 
-    // All-clear — flip the boost in DB using the service-role key so we
-    // bypass RLS (validation already replaced RLS as the trust boundary).
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Verify user is actually the host of the event we're activating for.
-    // Without this, anyone could pay €2.99 then submit someone else's event_id
-    // and boost the wrong event.
     const { data: ev, error: evErr } = await supabase
       .from('community_events')
       .select('id, host_id')
       .eq('id', event_id)
       .single()
-    if (evErr || !ev) return json({ error: 'Event not found' }, 404)
+    if (evErr || !ev) {
+      return json({ success: false, error: `Event not found (event_id=${event_id})`, step: 'event-lookup' })
+    }
     if (ev.host_id !== user_id) {
-      return json({ error: 'User is not the host of this event' }, 403)
+      return json({ success: false, error: `User is not the host (host=${ev.host_id} user=${user_id})`, step: 'host-check' })
     }
 
     const expiresIso = new Date(Date.now() + BOOST_DURATION_MS).toISOString()
@@ -180,12 +198,14 @@ Deno.serve(async (req: Request) => {
       .from('community_events')
       .update({ boost_expires_at: expiresIso })
       .eq('id', event_id)
-    if (updErr) return json({ error: `DB update failed: ${updErr.message}` }, 500)
+    if (updErr) {
+      return json({ success: false, error: `DB update failed: ${updErr.message}`, step: 'db-update' })
+    }
 
     return json({ success: true, expires_at: expiresIso })
   } catch (e) {
-    console.error('validate-boost-receipt error:', e)
-    return json({ error: (e as Error).message || 'Internal error' }, 500)
+    console.error('validate-boost-receipt unhandled error:', e)
+    return json({ success: false, error: (e as Error).message || 'Internal error', step: 'unhandled' })
   }
 })
 
