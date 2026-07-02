@@ -34,10 +34,12 @@ export function ConfirmDialog({
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 90, friction: 12 }),
-        Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-      ]).start()
+      // Backdrop appears INSTANTLY (opacity 1 without fade) so that when
+      // ConfirmDialog opens right after another modal closes (e.g. photo
+      // ActionSheet -> delete confirm), there's no visible dark-fade lag
+      // that reads as a flicker. Only the card still spring-scales for feel.
+      opacity.setValue(1)
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 90, friction: 12 }).start()
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     } else {
       scale.setValue(0.92)
