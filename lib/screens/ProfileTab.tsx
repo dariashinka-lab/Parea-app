@@ -22,6 +22,9 @@ import { uploadPhotoToStorage, isImageSafe } from '../photo-helpers'
 import { supabase } from '../supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { registerPushToken } from '../push'
+import { ActionSheet } from '../components/ActionSheet'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { Camera, Image as ImageIcon, Trash2 } from 'lucide-react-native'
 
 export const PUSH_PREF_KEY = 'parea_push_enabled'
 
@@ -113,25 +116,28 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
       Alert.alert('Main photo required', 'You need at least one photo. Replace it instead.')
       return
     }
-    Alert.alert('Delete photo?', undefined, [
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        const updated = userPhotos.filter((_, i) => i !== idx)
-        onUpdateUserData?.({ photos: updated })
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-        // Await the DB write so any immediate follow-up (e.g. tapping Preview)
-        // reads the post-delete row, not a stale pre-delete one.
-        if (userData?.dbId) {
-          const { error } = await supabase.from('profiles').update({ photos: updated }).eq('id', userData.dbId)
-          if (error) console.warn('Photo delete DB update error:', error.message)
-        }
-      }},
-      { text: 'Cancel', style: 'cancel' },
-    ])
+    // Open the branded ConfirmDialog; actual delete runs on confirm below.
+    setPhotoDeleteIdx(idx)
+  }
+
+  const performPhotoDelete = async (idx: number) => {
+    const updated = userPhotos.filter((_, i) => i !== idx)
+    onUpdateUserData?.({ photos: updated })
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    if (userData?.dbId) {
+      const { error } = await supabase.from('profiles').update({ photos: updated }).eq('id', userData.dbId)
+      if (error) console.warn('Photo delete DB update error:', error.message)
+    }
   }
 
   const [profilePreviewOpen, setProfilePreviewOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Branded photo picker sheet + delete confirmation replace the old
+  // native Alert.alert dialogs with emoji chrome (🤳 🖼️ 🗑️). photoSheet
+  // is null when closed, or { idx, isMain } for edit / 'add' for a new slot.
+  const [photoSheet, setPhotoSheet] = useState<null | { mode: 'edit'; idx: number; isMain: boolean } | { mode: 'add' }>(null)
+  const [photoDeleteIdx, setPhotoDeleteIdx] = useState<number | null>(null)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   // Reflect the saved push preference on mount.
   useEffect(() => {
@@ -528,13 +534,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                   <TouchableOpacity key={`${i}_${uri}`} activeOpacity={0.85}
                     onPress={() => {
                       if (isChecking || isRejected) return
-                      const acts: any[] = [
-                        { text: '🤳  Take a selfie', onPress: () => pickProfilePhoto(i, 'camera') },
-                        { text: '🖼️  Choose from gallery', onPress: () => pickProfilePhoto(i, 'gallery') },
-                      ]
-                      if (!isMain) acts.push({ text: '🗑️  Delete', style: 'destructive', onPress: () => deleteProfilePhoto(i) })
-                      acts.push({ text: 'Cancel', style: 'cancel' })
-                      Alert.alert(isMain ? 'Main photo' : `Photo ${i + 1}`, undefined, acts)
+                      setPhotoSheet({ mode: 'edit', idx: i, isMain })
                     }}
                     style={{ width: SZ, height: SZ * 1.15, borderRadius: 16, overflow: 'hidden', backgroundColor: '#E2E8F0' }}>
                     <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
@@ -545,11 +545,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                   </TouchableOpacity>
                 )
                 if (i <= userPhotos.length) return (
-                  <TouchableOpacity key={i} onPress={() => Alert.alert('Add a photo', undefined, [
-                    { text: '🤳  Take a selfie', onPress: () => pickProfilePhoto(undefined, 'camera') },
-                    { text: '🖼️  Choose from gallery', onPress: () => pickProfilePhoto(undefined, 'gallery') },
-                    { text: 'Cancel', style: 'cancel' },
-                  ])}
+                  <TouchableOpacity key={i} onPress={() => setPhotoSheet({ mode: 'add' })}
                     style={{ width: SZ, height: SZ * 1.15, borderRadius: 16, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                     <Feather name="plus" size={20} color="#94A3B8" />
                     <Text style={{ fontSize: 10, color: '#94A3B8', fontWeight: '700' }}>Add</Text>
@@ -913,6 +909,64 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
 
         </ScrollView>
       </View>
+
+      {/* Branded photo picker + delete confirmation — replaces the old
+          native Alert.alert flows with 🤳/🖼️/🗑️ emoji chrome. */}
+      <ActionSheet
+        visible={!!photoSheet}
+        title={
+          photoSheet?.mode === 'add'
+            ? 'Add a photo'
+            : photoSheet?.mode === 'edit'
+              ? (photoSheet.isMain ? 'Main photo' : `Photo ${photoSheet.idx + 1}`)
+              : undefined
+        }
+        actions={(() => {
+          if (!photoSheet) return []
+          const isEdit = photoSheet.mode === 'edit'
+          const idx = isEdit ? (photoSheet as any).idx : undefined
+          const isMain = isEdit ? (photoSheet as any).isMain : false
+          const acts = [
+            {
+              key: 'camera',
+              label: 'Take a selfie',
+              icon: <Camera size={20} color="#6366F1" strokeWidth={2} />,
+              onPress: () => pickProfilePhoto(idx, 'camera'),
+            },
+            {
+              key: 'gallery',
+              label: 'Choose from gallery',
+              icon: <ImageIcon size={20} color="#6366F1" strokeWidth={2} />,
+              onPress: () => pickProfilePhoto(idx, 'gallery'),
+            },
+          ]
+          if (isEdit && !isMain) {
+            acts.push({
+              key: 'delete',
+              label: 'Delete photo',
+              destructive: true,
+              icon: <Trash2 size={20} color="#EF4444" strokeWidth={2} />,
+              onPress: () => deleteProfilePhoto(idx as number),
+            } as any)
+          }
+          return acts
+        })()}
+        onClose={() => setPhotoSheet(null)}
+      />
+      <ConfirmDialog
+        visible={photoDeleteIdx !== null}
+        title="Delete photo?"
+        body="You can always add another one later."
+        confirmText="Delete"
+        cancelText="Keep"
+        destructive
+        onConfirm={() => {
+          const idx = photoDeleteIdx
+          setPhotoDeleteIdx(null)
+          if (idx !== null) performPhotoDelete(idx)
+        }}
+        onClose={() => setPhotoDeleteIdx(null)}
+      />
     </View>
   )
 }
