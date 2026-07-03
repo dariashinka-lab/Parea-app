@@ -26,15 +26,32 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
   const isFree = freeBoostsLeft > 0
   const insets = useSafeAreaInsets()
   const slide = useRef(new Animated.Value(0)).current
+  // 'Breathing' pulse on the CTA — slow 1→1.035→1 loop so the primary
+  // action reads as alive rather than a dead flat button. Runs only while
+  // the sheet is visible; stopped when sheet closes to save CPU.
+  const pulse = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
     if (visible) {
       Animated.spring(slide, { toValue: 1, useNativeDriver: true, tension: 80, friction: 14 }).start()
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+      // Kick off the breathing loop. loop() runs the sequence forever until
+      // .stop() is called (in the else branch below).
+      const breath = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 0, duration: 1200, useNativeDriver: true }),
+        ]),
+      )
+      breath.start()
+      return () => breath.stop()
     } else {
       Animated.timing(slide, { toValue: 0, duration: 220, useNativeDriver: true }).start()
+      pulse.setValue(0)
     }
   }, [visible])
+
+  const ctaScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] })
 
   const translateY = slide.interpolate({ inputRange: [0, 1], outputRange: [600, 0] })
   const opacity = slide.interpolate({ inputRange: [0, 1], outputRange: [0, 1] })
@@ -116,20 +133,24 @@ export function BoostSheet({ visible, event, freeBoostsLeft = 0, onClose, onConf
             </Text>
           </View>
 
-          {/* CTA */}
+          {/* CTA — wrapped in Animated.View so the whole gradient breathes.
+              transform:scale runs on native driver so it's smooth even when JS
+              is busy validating the receipt during a real purchase. */}
           <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
-            <TouchableOpacity activeOpacity={isFree ? 0.88 : 0.9}
-              onPress={() => { Haptics.notificationAsync(isFree ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning); onConfirm() }}
-              style={{ borderRadius: 99, overflow: 'hidden' }}>
-              <LinearGradient
-                colors={['#8B5CF6', '#EC4899']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={{ paddingVertical: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
-                <Text style={{ fontSize: 16, fontFamily: 'ClashDisplay-Semibold', color: '#1A0E2E', letterSpacing: 0.2 }}>
-                  Boost my plan
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: ctaScale }] }}>
+              <TouchableOpacity activeOpacity={isFree ? 0.88 : 0.9}
+                onPress={() => { Haptics.notificationAsync(isFree ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning); onConfirm() }}
+                style={{ borderRadius: 99, overflow: 'hidden' }}>
+                <LinearGradient
+                  colors={['#8B5CF6', '#EC4899']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={{ paddingVertical: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+                  <Text style={{ fontSize: 16, fontFamily: 'ClashDisplay-Semibold', color: '#1A0E2E', letterSpacing: 0.2 }}>
+                    Boost my plan
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
           {/* Footer — shield + neutral note (no 'next release' marketing) */}
