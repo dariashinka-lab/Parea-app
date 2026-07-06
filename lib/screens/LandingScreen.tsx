@@ -291,13 +291,24 @@ export function LandingScreen({ onCreateAccount, onLogin, onGoogleSignIn, onAppl
           <TouchableOpacity
             onPress={isLast ? handleCreateAccount : () => goTo(slide + 1)}
             activeOpacity={1}
-            style={{ marginTop: 10 }}>
+            // alignSelf: 'stretch' locks the button to full container width
+            // even when React Native's Xiaomi/MIUI layout pass measures a
+            // child mid-fade — otherwise the button momentarily sized itself
+            // to the Text's natural width and the numberOfLines={1} ellipsis
+            // kicked in and stuck ('Show me eve…').
+            style={{ marginTop: 10, alignSelf: 'stretch' }}>
             <LinearGradient
               colors={['#8B5CF6', '#F97316']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={ls.ctaGradient}>
-              <Text style={ls.ctaText} numberOfLines={1}>
+              <Text
+                style={ls.ctaText}
+                numberOfLines={1}
+                // If a font metric still under-reports width, scale the label
+                // down (down to 82% of 16px = ~13px) instead of ellipsising.
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}>
                 {isLast ? 'Find my people' : cur.btnLabel}
               </Text>
             </LinearGradient>
