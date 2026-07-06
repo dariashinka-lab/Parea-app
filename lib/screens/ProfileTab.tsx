@@ -138,6 +138,9 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
   // is null when closed, or { idx, isMain } for edit / 'add' for a new slot.
   const [photoSheet, setPhotoSheet] = useState<null | { mode: 'edit'; idx: number; isMain: boolean } | { mode: 'add' }>(null)
   const [photoDeleteIdx, setPhotoDeleteIdx] = useState<number | null>(null)
+  // Same branded pattern for Account section: Log out + Delete account.
+  const [logoutOpen, setLogoutOpen] = useState(false)
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   // Reflect the saved push preference on mount.
   useEffect(() => {
@@ -758,10 +761,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                   <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>Account</Text>
                   <View style={{ backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }}>
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
-                      onPress={() => Alert.alert('Log out?', 'You can sign back in anytime.', [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Log out', style: 'destructive', onPress: () => { setSettingsOpen(false); setTimeout(() => onLogOut?.(), 300) } },
-                      ])}>
+                      onPress={() => setLogoutOpen(true)}>
                       <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
                         <Feather name="log-out" size={17} color="#EF4444" />
                       </View>
@@ -769,22 +769,7 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
                     </TouchableOpacity>
                     <View style={{ height: 1, backgroundColor: '#F8FAFC', marginLeft: 66 }} />
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 }}
-                      onPress={() => Alert.alert('Delete Account', 'This will permanently delete your profile and all your data. This cannot be undone.', [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Delete', style: 'destructive', onPress: async () => {
-                          try {
-                            const { data: { session } } = await supabase.auth.getSession()
-                            if (!session?.access_token) throw new Error('Not logged in')
-                            const resp = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
-                              method: 'POST',
-                              headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY! },
-                            })
-                            const json = await resp.json()
-                            if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`)
-                          } catch (e: any) { Alert.alert('Error', String(e?.message || e)); return }
-                          await supabase.auth.signOut(); onLogOut?.()
-                        }},
-                      ])}>
+                      onPress={() => setDeleteAccountOpen(true)}>
                       <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
                         <Feather name="trash-2" size={17} color="#EF4444" />
                       </View>
@@ -966,6 +951,57 @@ export function ProfileTab({ userData, onUpdateUserData, onLogOut, city, setCity
           if (idx !== null) performPhotoDelete(idx)
         }}
         onClose={() => setPhotoDeleteIdx(null)}
+      />
+      <ConfirmDialog
+        visible={logoutOpen}
+        title="Log out?"
+        body="You can sign back in anytime."
+        confirmText="Log out"
+        cancelText="Keep"
+        destructive
+        onConfirm={() => {
+          setLogoutOpen(false)
+          // Close the Settings modal first so the log-out redirect doesn't
+          // flash the account screen on the way out — 300ms mirrors the
+          // previous Alert flow's timing.
+          setSettingsOpen(false)
+          setTimeout(() => onLogOut?.(), 300)
+        }}
+        onClose={() => setLogoutOpen(false)}
+      />
+      <ConfirmDialog
+        visible={deleteAccountOpen}
+        title="Delete account?"
+        body="This will permanently delete your profile and all your data. This cannot be undone."
+        confirmText="Delete"
+        cancelText="Keep"
+        destructive
+        onConfirm={async () => {
+          setDeleteAccountOpen(false)
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.access_token) throw new Error('Not logged in')
+            const resp = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-account`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+              },
+            })
+            const json = await resp.json()
+            if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`)
+          } catch (e: any) {
+            // Fall back to native Alert only for the error surface — the
+            // delete branded dialog is already closed and there's no
+            // ConfirmDialog variant for single-button errors yet.
+            Alert.alert('Error', String(e?.message || e))
+            return
+          }
+          await supabase.auth.signOut()
+          onLogOut?.()
+        }}
+        onClose={() => setDeleteAccountOpen(false)}
       />
     </View>
   )
