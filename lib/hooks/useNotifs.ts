@@ -18,7 +18,7 @@ export type Notif = {
 // Notification "buckets" — which types are inbox vs chat-linked vs plans-linked.
 // FeedScreen uses these for selective clears (e.g. opening a chat removes
 // CHAT_TYPES for that chatId; opening Plans removes PLANS_TYPES).
-export const BELL_TYPES = ['welcome', 'host_full', 'event_cancelled', 'reminder_24h', 'reminder_2h']
+export const BELL_TYPES = ['welcome', 'host_full', 'event_cancelled', 'reminder_24h', 'reminder_2h', 'crew_invite']
 export const CHAT_TYPES = ['match', 'confirmed', 'group_chat', 'new_message', 'member_joined', 'crew_ready']
 export const PLANS_TYPES = ['join_request', 'member_left', 'reminder_24h', 'reminder_2h']
 

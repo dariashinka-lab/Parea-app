@@ -3268,6 +3268,23 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         return { ...inv, _format: format, _maxSize: maxSize }
       })
       setIncomingCrewInvites(enriched)
+      // Populate the bell inbox for each pending invite. addNotif dedupes on
+      // type|title|body|chatId via seenNotifKeysRef, so calling it every poll
+      // (15s) is safe — first sighting drops one notif in, subsequent polls
+      // are no-ops until the notif key is dismissed. Push already fires
+      // separately from the server side; this is only the in-app inbox row.
+      for (const inv of enriched) {
+        const inviterName = inv.inviter?.name || 'Someone'
+        const fmt = inv._format
+        const fmtLabel = fmt === '1+1' ? 'Duo' : fmt === 'squad' ? 'Squad' : fmt === 'party' ? 'Group' : 'Crew'
+        addNotif({
+          type: 'crew_invite',
+          emoji: '✨',
+          color: '#EC4899',
+          title: `${inviterName} invited you to their crew`,
+          body: `${fmtLabel} on “${inv.event_title || 'an event'}” — check Vibe`,
+        })
+      }
     }
     fetchIncoming()
     const interval = setInterval(fetchIncoming, 15000)
