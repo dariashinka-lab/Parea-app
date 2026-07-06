@@ -109,6 +109,8 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   const [cancelEventTarget, setCancelEventTarget] = useState<any>(null)
   // Same pattern for the 'Can't make it' leave flow on attending events.
   const [leaveEventTarget, setLeaveEventTarget] = useState<any>(null)
+  // Long-press-on-chat leave confirmation (Chats tab).
+  const [leaveChatTarget, setLeaveChatTarget] = useState<any>(null)
 
   const openCrewSheet = (ev: any, profiles: any[], found: number, cap: number) => {
     setCrewSheet({ ev, profiles, found, cap })
@@ -695,14 +697,7 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
               onPress={() => onOpenChat(chat)}
               onLongPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-                Alert.alert(
-                  chat.type === 'duo' ? `Leave chat with ${chat.name}?` : `Leave "${chat.event}"?`,
-                  chat.type === 'duo' ? `${chat.name} will see that your plans changed 📅` : `The group will see you've left.`,
-                  [
-                    { text: 'Leave', style: 'destructive', onPress: () => onLeaveChat?.(chat.id, true) },
-                    { text: 'Cancel', style: 'cancel' },
-                  ]
-                )
+                setLeaveChatTarget(chat)
               }}
               activeOpacity={0.85}
               style={{ borderRadius: 20, overflow: 'hidden' }}>
@@ -956,6 +951,24 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
           if (ev) onLeaveEvent?.(ev)
         }}
         onClose={() => setLeaveEventTarget(null)}
+      />
+      <ConfirmDialog
+        visible={!!leaveChatTarget}
+        title={leaveChatTarget?.type === 'duo'
+          ? `Leave chat with ${leaveChatTarget?.name || ''}?`
+          : `Leave “${leaveChatTarget?.event || ''}”?`}
+        body={leaveChatTarget?.type === 'duo'
+          ? `${leaveChatTarget?.name || 'They'} will see your plans changed.`
+          : "The group will see you've left."}
+        confirmText="Leave"
+        cancelText="Stay"
+        destructive
+        onConfirm={() => {
+          const chat = leaveChatTarget
+          setLeaveChatTarget(null)
+          if (chat) onLeaveChat?.(chat.id, true)
+        }}
+        onClose={() => setLeaveChatTarget(null)}
       />
     </View>
   )

@@ -8,6 +8,7 @@ import { INTEREST_ICON_MAP } from '../interest-icons'
 import { FLAG_MAP, INTERESTS_BY_CATEGORY, INTEREST_CATEGORY_PALETTE, LANGUAGES_LIST } from '../feed-constants'
 import { SOCIAL_ENERGY } from '../social-energy'
 import { supabase } from '../supabase'
+import { ConfirmDialog } from './ConfirmDialog'
 
 export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, onReport, inline = false, skipHydrate = false }: { profile: any; onClose: () => void; onBlock?: (profile: any) => void; onReport?: (profile: any) => void; inline?: boolean; skipHydrate?: boolean }) {
   const insets = useSafeAreaInsets()
@@ -15,6 +16,9 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
   const sheetMaxH = screenH - insets.top - 16
   const [photoIdx, setPhotoIdx] = useState(0)
   const slideAnim = useRef(new Animated.Value(300)).current
+  // Block used to fire instantly on tap — added a branded ConfirmDialog gate
+  // so the destructive action requires an explicit confirmation.
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false)
   // Hydrate sparse profile (e.g. from chat memberProfiles) with full row from DB so
   // interests/transport/langs etc. always show even when caller passed a stub.
   const [hydrated, setHydrated] = useState<any>(null)
@@ -234,7 +238,7 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
                 </TouchableOpacity>
               )}
               {onBlock && (
-                <TouchableOpacity onPress={() => { onBlock(profile); close() }}
+                <TouchableOpacity onPress={() => setBlockConfirmOpen(true)}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 12, borderRadius: 14, backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.22)' }}>
                   <Feather name="slash" size={15} color="#EF4444" />
                   <Text style={{ fontSize: 14, fontFamily: 'Outfit-SemiBold', color: '#EF4444' }}>Block</Text>
@@ -244,6 +248,20 @@ export function ProfilePreviewSheet({ profile: profileProp, onClose, onBlock, on
           )}
         </ScrollView>
       </Animated.View>
+      <ConfirmDialog
+        visible={blockConfirmOpen}
+        title={`Block ${profile?.name || 'this user'}?`}
+        body="They will not see you and you will not see them. You can unblock later from Profile → Blocked."
+        confirmText="Block"
+        cancelText="Keep"
+        destructive
+        onConfirm={() => {
+          setBlockConfirmOpen(false)
+          if (onBlock) onBlock(profile)
+          close()
+        }}
+        onClose={() => setBlockConfirmOpen(false)}
+      />
     </Wrapper>
   )
 }

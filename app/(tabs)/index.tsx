@@ -33,6 +33,7 @@ import { AuroraBg } from '../../lib/components/AuroraBg'
 import { DobBottomSheet } from '../../lib/components/DobBottomSheet'
 import { AnimatedInterestChip } from '../../lib/components/AnimatedInterestChip'
 import { ReportModal } from '../../lib/components/ReportModal'
+import { ConfirmDialog } from '../../lib/components/ConfirmDialog'
 import { ProfilePreviewSheet } from '../../lib/components/ProfilePreviewSheet'
 import { BoostSheet } from '../../lib/components/BoostSheet'
 import { BoostIcon } from '../../lib/components/BoostIcon'
@@ -1574,6 +1575,12 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   // section doesn't push the actual fields below the fold.
   const [createSummaryOpen, setCreateSummaryOpen] = useState(false)
   const [createImage, setCreateImage] = useState<{ uri: string; base64: string } | null>(null)
+  // Community Guidelines confirmation is shared between any photo upload site
+  // (currently the Create event cover photo). The pending 'go ahead' action is
+  // stashed in a ref so ConfirmDialog can trigger it on Confirm without the
+  // dialog owning the pickImage closure.
+  const [communityGuidelinesOpen, setCommunityGuidelinesOpen] = useState(false)
+  const communityGuidelinesActionRef = useRef<(() => void) | null>(null)
   const createScrollRef = useRef<ScrollView>(null)
   // Keyboard height while the create modal is open. On Android edge-to-edge the
   // window does NOT shrink for the keyboard, so we add this as bottom padding to
@@ -7221,11 +7228,8 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                               setCreateImage({ uri: asset.uri, base64: asset.base64 || '' })
                             }
                           }
-                          Alert.alert(
-                            'Community Guidelines',
-                            'By uploading a photo you confirm it does not contain nudity, violence, or inappropriate content. Violations may result in account suspension.',
-                            [{ text: 'Cancel', style: 'cancel' }, { text: 'I agree', onPress: pickImage }]
-                          )
+                          communityGuidelinesActionRef.current = pickImage
+                          setCommunityGuidelinesOpen(true)
                         }}
                           style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1.5, borderColor: createImage ? '#6366F1' : 'rgba(139, 92, 246, 0.18)' }}>
                           {createImage ? (
@@ -8052,6 +8056,23 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           etc). Rendered as a Modal here so it works on its own. The inline copy
           above handles taps from inside the chat. */}
       {chatPartnerPreview && !openChat && <ProfilePreviewSheet profile={chatPartnerPreview} onClose={() => setChatPartnerPreview(null)} onBlock={handleBlock} onReport={(p) => setReportTarget(p)} />}
+      <ConfirmDialog
+        visible={communityGuidelinesOpen}
+        title="Community Guidelines"
+        body="By uploading a photo you confirm it does not contain nudity, violence, or inappropriate content. Violations may result in account suspension."
+        confirmText="I agree"
+        cancelText="Cancel"
+        onConfirm={() => {
+          setCommunityGuidelinesOpen(false)
+          const cb = communityGuidelinesActionRef.current
+          communityGuidelinesActionRef.current = null
+          cb?.()
+        }}
+        onClose={() => {
+          setCommunityGuidelinesOpen(false)
+          communityGuidelinesActionRef.current = null
+        }}
+      />
       {reportTarget && (
         <ReportModal
           profile={reportTarget}

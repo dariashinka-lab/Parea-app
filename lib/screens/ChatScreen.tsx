@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { StatusBar } from 'expo-status-bar'
 import * as Haptics from 'expo-haptics'
 import { ProfilePreviewSheet } from '../components/ProfilePreviewSheet'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { s } from '../feed-styles'
 import { prettyEventTime } from '../feed-helpers'
 import { FLAG_MAP } from '../feed-constants'
@@ -47,6 +48,12 @@ export function ChatScreen(props: any) {
     insets,
     handleSend, handleBlock, showToast,
   } = props
+
+  // Branded confirmation dialogs replace the native Alert flows the trash
+  // icon used to trigger. Two mutually exclusive dialogs — hosted event
+  // owner sees 'Cancel event?', member sees 'Leave chat?' — so a simple
+  // union type keeps state minimal.
+  const [chatMenuDialog, setChatMenuDialog] = useState<null | 'cancelEvent' | 'leaveChat'>(null)
 
   if (!openChat) return null
 
@@ -152,85 +159,9 @@ export function ChatScreen(props: any) {
             <TouchableOpacity
               style={{ padding: 6 }}
               onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              if (openChat.hostEventId) {
-                Alert.alert(
-                  openChat.event,
-                  'What do you want to do?',
-                  [
-                    { text: 'Cancel Event 🗑️', style: 'destructive', onPress: () => {
-                      setUserCreatedEvents((prev: any[]) => prev.filter((e: any) => e.id !== openChat.hostEventId))
-                      setPendingJoinRequests((prev: any) => { const n = { ...prev }; delete n[openChat.hostEventId]; return n })
-                      setApprovedJoiners((prev: any) => { const n = { ...prev }; delete n[openChat.hostEventId]; return n })
-                      setChatList((prev: any[]) => prev.filter((c: any) => c.id !== openChat.id))
-                      setOpenChat(null)
-                      showToast('All requests and chats removed', 'Event cancelled 🗑️', '🗑️')
-                    }},
-                    { text: 'Close', style: 'cancel' },
-                  ]
-                )
-              } else {
-                Alert.alert(
-                  openChat.type === 'duo' ? `Chat with ${openChat.name}` : openChat.event,
-                  'What do you want to do?',
-                  [
-                    { text: 'Leave chat', style: 'destructive', onPress: () => {
-                      const chatId = openChat.id
-                      const evId = openChat.communityEventId
-                      const officialEvRefId = !evId && !openChat.hostEventId ? openChat.eventRefId : null
-                      if (evId && !openChat.hostEventId && userData?.dbId) {
-                        // Удаляем join_request
-                        supabase.from('join_requests').delete().eq('event_id', evId).eq('requester_id', userData.dbId)
-                          .then(({ error }) => { if (error) console.warn('leave join_request error:', error.message) })
-                        // Удаляем chat_members чтобы realtime не восстановил чат
-                        if (typeof chatId === 'number' && chatId < 1e12) {
-                          supabase.from('chat_members')
-                            .delete().eq('chat_id', chatId).eq('profile_id', userData.dbId)
-                            .then(({ error }) => { if (error) console.warn('leave chat_members delete error:', error.message) })
-                        }
-                        // Системное сообщение — может упасть с FK error если событие уже удалено, это ок
-                        supabase.from('messages').insert({ community_event_id: evId, sender_id: userData.dbId, text: `${userData.name || 'Someone'} left the group` })
-                          .then(({ error }) => { if (error) console.warn('leave msg error:', error.message) })
-                        // Блок-лист чтобы fallback-поллинг не вернул чат обратно
-                        cancelledEventIdsRef.current.add(evId)
-                        setCancelledEventIds((prev: number[]) => [...new Set([...prev, evId])])
-                        setJoinedEvents((prev: any) => { const n = { ...prev }; delete n[evId]; return n })
-                      } else if (officialEvRefId && typeof chatId === 'number' && chatId < 1e12 && userData?.dbId) {
-                        // Group official multi-crew chat — same teardown pattern as
-                        // community leave, otherwise fallback poll re-adds the chat.
-                        supabase.from('chat_members')
-                          .delete().eq('chat_id', chatId).eq('profile_id', userData.dbId)
-                          .then(async () => {
-                            // If others remain, post "X left the group"; if empty, delete the chat row.
-                            const { data: remaining } = await supabase.from('chat_members')
-                              .select('profile_id').eq('chat_id', chatId)
-                            if (!remaining || remaining.length === 0) {
-                              supabase.from('chats').delete().eq('id', chatId)
-                            } else {
-                              supabase.from('messages').insert({
-                                chat_id: chatId, sender_id: userData.dbId,
-                                text: `${userData.name || 'Someone'} left the group`,
-                              }).then(({ error }) => { if (error) console.warn('leave system msg error:', error.message) })
-                            }
-                          })
-                        cancelledEventIdsRef.current.add(officialEvRefId)
-                        setCancelledEventIds((prev: number[]) => [...new Set([...prev, officialEvRefId])])
-                        setJoinedEvents((prev: any) => { const n = { ...prev }; delete n[officialEvRefId]; return n })
-                        setOfficialEventChatMap((prev: any) => { const n = { ...prev }; delete n[officialEvRefId]; return n })
-                      }
-                      setChatMessages((prev: any) => ({
-                        ...prev,
-                        [chatId]: [...(prev[chatId] || []), { from: 'system', text: 'You changed your plans 📅', time: 'now' }],
-                      }))
-                      setChatList((prev: any[]) => prev.filter((c: any) => c.id !== chatId))
-                      setOpenChat(null)
-                      showToast('They\'ve been notified', 'Plans changed 📅', '📅')
-                    }},
-                    { text: 'Close', style: 'cancel' },
-                  ]
-                )
-              }
-            }}>
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+                setChatMenuDialog(openChat.hostEventId ? 'cancelEvent' : 'leaveChat')
+              }}>
               <Feather name="more-vertical" size={22} color="#64748B" />
             </TouchableOpacity>
           </View>
@@ -443,6 +374,89 @@ export function ChatScreen(props: any) {
       {/* Chat partner profile preview rendered inside chat Modal as an inline
           View overlay (Modal-over-Modal isn't supported on iOS). */}
       {chatPartnerPreview && <ProfilePreviewSheet inline profile={chatPartnerPreview} onClose={() => setChatPartnerPreview(null)} onBlock={handleBlock} onReport={(p: any) => setReportTarget(p)} />}
+
+      {/* Cancel-event confirmation for hosts — same content the previous
+          Alert had ('all requests and chats removed'), just in the branded
+          dialog. */}
+      <ConfirmDialog
+        visible={chatMenuDialog === 'cancelEvent'}
+        title={`Cancel “${openChat.event || ''}”?`}
+        body="All requests and chats will be removed."
+        confirmText="Cancel event"
+        cancelText="Keep"
+        destructive
+        onConfirm={() => {
+          setChatMenuDialog(null)
+          setUserCreatedEvents((prev: any[]) => prev.filter((e: any) => e.id !== openChat.hostEventId))
+          setPendingJoinRequests((prev: any) => { const n = { ...prev }; delete n[openChat.hostEventId]; return n })
+          setApprovedJoiners((prev: any) => { const n = { ...prev }; delete n[openChat.hostEventId]; return n })
+          setChatList((prev: any[]) => prev.filter((c: any) => c.id !== openChat.id))
+          setOpenChat(null)
+          showToast('All requests and chats removed', 'Event cancelled 🗑️', '🗑️')
+        }}
+        onClose={() => setChatMenuDialog(null)}
+      />
+
+      {/* Leave-chat confirmation for non-host members. Body copy differs
+          between duo (private message the partner sees) and group (system
+          message the whole group sees). */}
+      <ConfirmDialog
+        visible={chatMenuDialog === 'leaveChat'}
+        title={openChat.type === 'duo' ? `Leave chat with ${openChat.name}?` : `Leave “${openChat.event || ''}”?`}
+        body={openChat.type === 'duo'
+          ? `${openChat.name || 'They'} will see your plans changed.`
+          : "The group will see you've left."}
+        confirmText="Leave"
+        cancelText="Stay"
+        destructive
+        onConfirm={() => {
+          setChatMenuDialog(null)
+          const chatId = openChat.id
+          const evId = openChat.communityEventId
+          const officialEvRefId = !evId && !openChat.hostEventId ? openChat.eventRefId : null
+          if (evId && !openChat.hostEventId && userData?.dbId) {
+            supabase.from('join_requests').delete().eq('event_id', evId).eq('requester_id', userData.dbId)
+              .then(({ error }: any) => { if (error) console.warn('leave join_request error:', error.message) })
+            if (typeof chatId === 'number' && chatId < 1e12) {
+              supabase.from('chat_members')
+                .delete().eq('chat_id', chatId).eq('profile_id', userData.dbId)
+                .then(({ error }: any) => { if (error) console.warn('leave chat_members delete error:', error.message) })
+            }
+            supabase.from('messages').insert({ community_event_id: evId, sender_id: userData.dbId, text: `${userData.name || 'Someone'} left the group` })
+              .then(({ error }: any) => { if (error) console.warn('leave msg error:', error.message) })
+            cancelledEventIdsRef.current.add(evId)
+            setCancelledEventIds((prev: number[]) => [...new Set([...prev, evId])])
+            setJoinedEvents((prev: any) => { const n = { ...prev }; delete n[evId]; return n })
+          } else if (officialEvRefId && typeof chatId === 'number' && chatId < 1e12 && userData?.dbId) {
+            supabase.from('chat_members')
+              .delete().eq('chat_id', chatId).eq('profile_id', userData.dbId)
+              .then(async () => {
+                const { data: remaining } = await supabase.from('chat_members')
+                  .select('profile_id').eq('chat_id', chatId)
+                if (!remaining || remaining.length === 0) {
+                  supabase.from('chats').delete().eq('id', chatId)
+                } else {
+                  supabase.from('messages').insert({
+                    chat_id: chatId, sender_id: userData.dbId,
+                    text: `${userData.name || 'Someone'} left the group`,
+                  }).then(({ error }: any) => { if (error) console.warn('leave system msg error:', error.message) })
+                }
+              })
+            cancelledEventIdsRef.current.add(officialEvRefId)
+            setCancelledEventIds((prev: number[]) => [...new Set([...prev, officialEvRefId])])
+            setJoinedEvents((prev: any) => { const n = { ...prev }; delete n[officialEvRefId]; return n })
+            setOfficialEventChatMap((prev: any) => { const n = { ...prev }; delete n[officialEvRefId]; return n })
+          }
+          setChatMessages((prev: any) => ({
+            ...prev,
+            [chatId]: [...(prev[chatId] || []), { from: 'system', text: 'You changed your plans 📅', time: 'now' }],
+          }))
+          setChatList((prev: any[]) => prev.filter((c: any) => c.id !== chatId))
+          setOpenChat(null)
+          showToast("They've been notified", 'Plans changed 📅', '📅')
+        }}
+        onClose={() => setChatMenuDialog(null)}
+      />
       </View>
     </Modal>
   )
