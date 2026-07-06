@@ -1655,6 +1655,18 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       setOfficialEventChatMap(prev => { const n = { ...prev }; delete n[evId!]; return n })
       setCrewPreviewMap(prev => { const n = { ...prev }; delete n[evId!]; return n })
       setReadyCountMap(prev => { const n = { ...prev }; delete n[evId!]; return n })
+      // Crew dissolved — downgrade badge from 'joined'/'confirmed' back to
+      // 'pending' so the feed card reads 'Finding crew…' instead of the
+      // stale 'Crew ready ✓' / 'Confirmed ✓'. Applies only when the user
+      // is still opted in (entry exists). Skip if user explicitly left
+      // (cancelledEventIdsRef ownership) so we don't resurrect a state
+      // the user just deliberately dropped.
+      if (cancelledEventIdsRef.current.has(evId!)) return
+      setJoinedEvents(prev => {
+        const cur = prev[evId!]
+        if (cur !== 'joined' && cur !== 'confirmed') return prev
+        return { ...prev, [evId!]: 'pending' }
+      })
     },
   })
 
@@ -2392,26 +2404,75 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
       // missed firing on one side).
       // Two sources to cover both crew/community (chats.event_id) and duo
       // official (crew_invites.event_ref_id — chats.event_id is NULL there).
+      // Fetch user's chat memberships. `chats:chat_id(id, event_id)` gives us
+      // both the chat.id (needed for a second query to count OTHER members)
+      // and event_id (needed to link chat → event). event_id can be NULL for
+      // duo-official chats — we cover those via the crew_invites queries below.
       const [{ data: myChats }, { data: invitesAsInviter }, { data: invitesAsInvitee }] = await Promise.all([
         supabase.from('chat_members')
-          .select('chats:chat_id(event_id)')
+          .select('chats:chat_id(id, event_id)')
           .eq('profile_id', userData.dbId),
         supabase.from('crew_invites')
-          .select('event_ref_id')
+          .select('event_ref_id, chat_id')
           .eq('inviter_id', userData.dbId)
           .eq('status', 'accepted')
           .not('chat_id', 'is', null),
         supabase.from('crew_invites')
-          .select('event_ref_id')
+          .select('event_ref_id, chat_id')
           .eq('invitee_id', userData.dbId)
           .eq('status', 'accepted')
           .not('chat_id', 'is', null),
       ])
-      const confirmedViaChatEventIds = new Set<number>([
-        ...(myChats || []).map((r: any) => (r.chats as any)?.event_id).filter((id: any) => id != null),
-        ...(invitesAsInviter || []).map((r: any) => r.event_ref_id),
-        ...(invitesAsInvitee || []).map((r: any) => r.event_ref_id),
-      ])
+
+      // Count OTHER members per chat so we can tell 'crew formed' from 'solo
+      // crew'. A duo where the partner already left leaves 1 lonely member
+      // (or the chat is deleted entirely). A squad where everyone else exited
+      // shows the same signal. Without this the backfill would stamp
+      // 'confirmed' on any event with a chat, even one the user is alone in.
+      const myChatIds = new Set<number>()
+      for (const row of (myChats || []) as any[]) {
+        const cid = (row.chats as any)?.id
+        if (typeof cid === 'number') myChatIds.add(cid)
+      }
+      for (const row of (invitesAsInviter || []) as any[]) {
+        if (typeof row.chat_id === 'number') myChatIds.add(row.chat_id)
+      }
+      for (const row of (invitesAsInvitee || []) as any[]) {
+        if (typeof row.chat_id === 'number') myChatIds.add(row.chat_id)
+      }
+      const otherMembersByChat: Record<number, number> = {}
+      if (myChatIds.size > 0) {
+        const { data: memberRows } = await supabase
+          .from('chat_members')
+          .select('chat_id, profile_id')
+          .in('chat_id', Array.from(myChatIds))
+        for (const m of (memberRows || []) as any[]) {
+          if (m.profile_id === userData.dbId) continue
+          otherMembersByChat[m.chat_id] = (otherMembersByChat[m.chat_id] || 0) + 1
+        }
+      }
+
+      // Only treat an event as 'confirmed' when the linked chat has AT LEAST
+      // ONE other member. This is the downgrade path: user opted in +
+      // event_attendees says 'confirmed', but the partner left → we now flip
+      // back to 'pending' so the feed badge reads 'Finding crew…' truthfully.
+      const activeCrewEventIds = new Set<number>()
+      for (const row of (myChats || []) as any[]) {
+        const cid = (row.chats as any)?.id
+        const eid = (row.chats as any)?.event_id
+        if (typeof eid === 'number' && typeof cid === 'number' && (otherMembersByChat[cid] || 0) >= 1) {
+          activeCrewEventIds.add(eid)
+        }
+      }
+      for (const row of (invitesAsInviter || []) as any[]) {
+        if (typeof row.event_ref_id !== 'number') continue
+        if ((otherMembersByChat[row.chat_id] || 0) >= 1) activeCrewEventIds.add(row.event_ref_id)
+      }
+      for (const row of (invitesAsInvitee || []) as any[]) {
+        if (typeof row.event_ref_id !== 'number') continue
+        if ((otherMembersByChat[row.chat_id] || 0) >= 1) activeCrewEventIds.add(row.event_ref_id)
+      }
+
       setJoinedEvents(prev => {
         const next = { ...prev }
         let changed = false
@@ -2422,13 +2483,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           // gone". Host events live under deletedCommunityEventIds.
           if (cancelledEventIdsRef.current.has(row.event_ref_id)) continue
           if (deletedCommunityEventIds.current.has(row.event_ref_id)) continue
-          const dbStatus: 'joined' | 'confirmed' =
-            row.status === 'confirmed' || confirmedViaChatEventIds.has(row.event_ref_id)
-              ? 'confirmed'
-              : 'joined'
-          // Always sync to DB — earlier this skipped if any local value was set,
-          // which left users on "Looking for crew" after a partner accepted
-          // while their local state was still 'joined'.
+          // 'confirmed' only when there's an active crew (chat + other members).
+          // Otherwise the user is opted in but alone → 'pending' ('Finding crew…').
+          const dbStatus: 'pending' | 'confirmed' =
+            activeCrewEventIds.has(row.event_ref_id) ? 'confirmed' : 'pending'
           if (next[row.event_ref_id] !== dbStatus) {
             next[row.event_ref_id] = dbStatus
             changed = true
