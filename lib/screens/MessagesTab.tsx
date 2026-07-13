@@ -70,7 +70,7 @@ function EventThumb({ uri, emoji, colors }: { uri: string; emoji?: string; color
   )
 }
 
-export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser, plansLoading = false, userDbId, boostedEvents = {}, freeBoostsLeft = 0, onBoostEvent }: {
+export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = {}, userEventFormat = {}, userEventTransport = {}, crewsByEvent = {}, officialEventChatMap = {}, onVibeCheck, onLeaveEvent, onUpdatePlans, initialSubTab, hostedEvents = [], approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onCancelHostedEvent, onPlansOpen, allEvents = [], onEventDetail, eventAttendeesMap = {}, passedRequests = {}, onBlockUser, onReportUser, plansLoading = false, userDbId, boostedEvents = {}, freeBoostsLeft = 0, onBoostEvent, onBrowseEvents }: {
   chatList: any[]; onOpenChat: (c: any) => void; onLeaveChat?: (id: number, addSystemMsg?: boolean) => void;
   plansLoading?: boolean;
   joinedEvents?: Record<number, string>; userEventFormat?: Record<number, string>; userEventTransport?: Record<number, string>; allEvents?: any[]; onEventDetail?: (ev: any) => void;
@@ -83,6 +83,10 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
   boostedEvents?: Record<number, number>;
   freeBoostsLeft?: number;
   onBoostEvent?: (ev: any) => void;
+  // Empty-state CTAs on both sub-tabs call this to switch the outer tab
+  // to Home so the user can browse events without hunting for the Home
+  // icon at the bottom.
+  onBrowseEvents?: () => void;
 }) {
   const [subTab, setSubTab] = useState<'going' | 'messages'>(initialSubTab || 'going')
   useEffect(() => { if (initialSubTab) setSubTab(initialSubTab) }, [initialSubTab])
@@ -386,9 +390,15 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                 <CalendarDays size={32} color="#fff" />
               </LinearGradient>
               <Text style={{ fontSize: 20, fontWeight: '900', color: '#1E1B4B', marginBottom: 8, letterSpacing: -0.5 }}>No plans yet</Text>
-              <Text style={{ fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 22 }}>
-                Go join something —{'\n'}your events will show up here
+              <Text style={{ fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+                Join or host an event —{'\n'}your plans will show up here
               </Text>
+              {onBrowseEvents && (
+                <TouchableOpacity onPress={onBrowseEvents} activeOpacity={0.85}
+                  style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 99, backgroundColor: '#6366F1', shadowColor: '#6366F1', shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>Browse events →</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             myEvents.map(ev => {
@@ -678,9 +688,15 @@ export function MessagesTab({ chatList, onOpenChat, onLeaveChat, joinedEvents = 
                 <ChatTeardrop size={38} color="#6366F1" weight="duotone" />
               </View>
               <Text style={{ fontSize: 22, fontWeight: '900', color: '#1E1B4B', marginBottom: 10, letterSpacing: -0.5 }}>No chats yet</Text>
-              <Text style={{ fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 22, maxWidth: 220 }}>
+              <Text style={{ fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 22, maxWidth: 220, marginBottom: 24 }}>
                 Join an event to start chatting with your crew
               </Text>
+              {onBrowseEvents && (
+                <TouchableOpacity onPress={onBrowseEvents} activeOpacity={0.85}
+                  style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 99, backgroundColor: '#6366F1', shadowColor: '#6366F1', shadowOpacity: 0.35, shadowRadius: 12, elevation: 6 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>Browse events →</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
           {!(plansLoading || (allEvents.length === 0 && hostedEvents.length === 0)) && [...visibleChats].sort((a, b) => {

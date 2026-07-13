@@ -6436,6 +6436,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
             boostedEvents={boostedEvents}
             freeBoostsLeft={Math.max(0, FREE_BOOST_ALLOWANCE - boostsUsed)}
             onBoostEvent={(ev: any) => setBoostSheetEvent(ev)}
+            onBrowseEvents={() => setActiveTab('home')}
             onOpenChat={(chat) => {
               setOpenChat(chat)
               setChatList(prev => prev.map(c => c.id === chat.id ? { ...c, isNew: false } : c))
