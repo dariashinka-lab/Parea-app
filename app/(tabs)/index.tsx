@@ -254,6 +254,56 @@ Score each candidate 0-100 for companion compatibility.${user.eventContext ? ' B
 // OTPScreen extracted to lib/screens/OTPScreen.tsx
 
 
+// Pulsing dot on nav icons. Small animated bubble that alternates core
+// opacity 0.35 <-> 1 and diffuses a soft halo behind it, so the user
+// notices there's activity waiting for them on that tab. Colour is
+// passed in so callers can distinguish urgencies (host approval = gold,
+// generic join = green, etc).
+function PulsingNavDot({ color }: { color: string }) {
+  const halo = useRef(new Animated.Value(0)).current
+  const core = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(halo, { toValue: 1, duration: 1100, useNativeDriver: true }),
+          Animated.timing(halo, { toValue: 0, duration: 1100, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(core, { toValue: 0.4, duration: 1100, useNativeDriver: true }),
+          Animated.timing(core, { toValue: 1,   duration: 1100, useNativeDriver: true }),
+        ]),
+      ])
+    )
+    anim.start()
+    return () => anim.stop()
+  }, [])
+  const haloScale = halo.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] })
+  const haloOpacity = halo.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] })
+  return (
+    <View style={{ position: 'absolute', top: -3, right: -5, width: 12, height: 12, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: 8, height: 8, borderRadius: 4,
+          backgroundColor: color,
+          opacity: haloOpacity,
+          transform: [{ scale: haloScale }],
+        }}
+      />
+      <Animated.View
+        style={{
+          width: 8, height: 8, borderRadius: 4,
+          backgroundColor: color,
+          opacity: core,
+          borderWidth: 1.5,
+          borderColor: '#F8F7FF',
+        }}
+      />
+    </View>
+  )
+}
+
 // ─── HOME TAB ─────────────────────────────────────────────────────────────────
 
 function HomeTab({ city, setCityOpen, feedFilter, setFeedFilter, onEventPress, joinedEvents, onJoin, userInterests, setUserEventFormat, setUserEventTransport, onJoinConfirmed, pendingJoinEv, onPendingJoinConsumed, extraEvents, approvedJoiners = {}, tonightVibe, setTonightVibe, onBellPress, unreadCount, bellShake, userData, onCancelHostedEvent, crewStats = {}, seenNewEventIds = [], boostedEvents = {}, onStartCreate }: any) {
@@ -6774,7 +6824,7 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
                   return pending > 0 || approved > 0
                 })
                 if (!(hasActiveJoined || hasPending || hasHostActivity)) return null
-                return <View style={{ position: 'absolute', top: -3, right: -5, width: 8, height: 8, borderRadius: 4, backgroundColor: hasPending ? '#FFD700' : '#43E97B', borderWidth: 1.5, borderColor: '#F8F7FF' }} />
+                return <PulsingNavDot color={hasPending ? '#FFD700' : '#43E97B'} />
               })()}
             </View>
             <Text style={[s.navLabel, activeTab === 'vibecheck' && { color: '#43E97B' }]}>Vibe</Text>
