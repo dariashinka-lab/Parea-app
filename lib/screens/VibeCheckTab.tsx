@@ -46,6 +46,59 @@ function PulsingStatusBadge({ label, color, bg, border }: { label: string; color
   )
 }
 
+// Small glowing dot indicator — used next to 'Waiting for requests' /
+// 'N request · X spots left' on hosted event cards so the user can see
+// at a glance that the crew is still forming. Alternates opacity 0.35 ↔ 1
+// on the dot itself, and softly pulses a diffuse violet halo behind it
+// so it reads as 'alive / searching'.
+function SearchingDot() {
+  const halo = useRef(new Animated.Value(0)).current
+  const core = useRef(new Animated.Value(1)).current
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(halo, { toValue: 1, duration: 1200, useNativeDriver: true }),
+          Animated.timing(halo, { toValue: 0, duration: 1200, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(core, { toValue: 0.35, duration: 1200, useNativeDriver: true }),
+          Animated.timing(core, { toValue: 1,    duration: 1200, useNativeDriver: true }),
+        ]),
+      ])
+    )
+    anim.start()
+    return () => anim.stop()
+  }, [])
+  const haloScale = halo.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.8] })
+  const haloOpacity = halo.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] })
+  return (
+    <View style={{ width: 14, height: 14, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: 14, height: 14, borderRadius: 7,
+          backgroundColor: '#A78BFA',
+          opacity: haloOpacity,
+          transform: [{ scale: haloScale }],
+        }}
+      />
+      <Animated.View
+        style={{
+          width: 7, height: 7, borderRadius: 4,
+          backgroundColor: '#A78BFA',
+          opacity: core,
+          shadowColor: '#8B5CF6',
+          shadowOpacity: 0.9,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 0 },
+          elevation: 4,
+        }}
+      />
+    </View>
+  )
+}
+
 
 export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEventTransport, onGoHome, onConfirm, onLeave, hostedEvents = [], pendingJoinRequests = {}, approvedJoiners = {}, hostConfirmedMembers = {}, approvedAtMap = {}, onApproveJoiner, onRejectJoiner, onPassJoiner, passedRequests = {}, userData, tonightVibe, onGoToMessages, eventAttendeesMap = {}, communityEventMembers = {}, incomingCrewInvites = [], sentCrewInvites = {}, onAcceptInvite, onDeclineInvite, onCancelHostedEvent, readyCountMap = {}, crewPreviewMap = {}, passedIdsByEvent = {}, onPassMember, onJoinCrew, crewsByEvent = {}, onJoinSpecificCrew, onCreateNewCrew, onInviteToMyCrew, officialEventChatMap = {}, topInset = 0, onBlockUser, onReportUser }: any) {
   const insets = useSafeAreaInsets()
@@ -305,10 +358,15 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
                       <Trash2 size={15} color="rgba(255,255,255,0.4)" />
                     </TouchableOpacity>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {/* Live-search indicator — pulsing violet dot to signal
+                        that the crew is actively forming. Hidden once the
+                        crew is full (no spots left AND no pending requests
+                        remaining). */}
+                    {slotsLeft > 0 && <SearchingDot />}
+                    <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: '600', flex: 1 }}>
                       {allRequests.length === 0
-                        ? `⏳ Waiting for requests · ${slotsLeft} spot${slotsLeft !== 1 ? 's' : ''} open`
+                        ? `Waiting for requests · ${slotsLeft} spot${slotsLeft !== 1 ? 's' : ''} open`
                         : `${allRequests.length} request${allRequests.length > 1 ? 's' : ''} · ${slotsLeft} spot${slotsLeft !== 1 ? 's' : ''} left · AI-ranked ✨`}
                     </Text>
                   </View>
