@@ -276,7 +276,7 @@ export function VibeCheckTab({ joinedEvents, allEvents, userEventFormat, userEve
   const subtitle = (() => {
     if (hasHostActivity) return 'You have join requests'
     const totalReal = myEvents.reduce((sum: number, e: any) => sum + (eventAttendeesMap[e.id]?.length || 0), 0)
-    if (myEvents.length > 0 && totalReal > 0) return `${totalReal} ${totalReal === 1 ? 'person' : 'people'} joined · tap to review`
+    if (myEvents.length > 0 && totalReal > 0) return `${totalReal} ${totalReal === 1 ? 'person' : 'people'} in your crew`
     const lookingCount = myEvents.length + visibleHosted.length
     if (lookingCount > 0) return `${lookingCount} event${lookingCount > 1 ? 's' : ''} · looking for crew...`
     if (myApprovedCommunityEvents.length > 0) return `You're in — open the chat`
