@@ -1851,9 +1851,6 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           e.id === eventId ? { ...e, boost_expires_at: expiresIso } : e
         ))
         showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
-        // High-value moment (user just paid + saw the value) — good time to
-        // ask for a Play Store rating via the native in-app review prompt.
-        maybeAskForReview()
       } catch (e: any) {
         console.warn('validate-boost-receipt invoke error:', e?.message)
         showToast(e?.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
@@ -4634,6 +4631,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
         } else {
           addNotif({ type: 'group_chat', emoji: '🎉', color: '#10B981', title: 'Group chat is live!', body: newest.event || 'Your crew is ready', chatId: typeof newest.id === 'number' ? newest.id : undefined })
         }
+        // Aha moment — crew formed. Counter-based throttle inside decides
+        // whether this specific occurrence is the one to prompt review.
+        bumpCrewConfirmedAndMaybeReview()
       }
     }
     prevChatCountRef.current = chatList.length
@@ -4694,21 +4694,58 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
   const [toast, setToast] = useState<{ visible: boolean; text: string; title?: string; emoji?: string }>({ visible: false, text: '' })
   const toastAnim = useRef(new Animated.Value(0)).current
 
-  // Native Play Store rating prompt — surfaced after high-value moments
-  // (successful Boost activation). Google throttles this at the OS level so
-  // repeated calls within ~3 months are silently no-op, but we belt-and-
-  // -suspender with an AsyncStorage flag so we never spam even on rare
-  // clock manipulation. Delayed 2.5s so the success toast lands first.
-  const maybeAskForReview = async () => {
+  // Native Play Store rating prompt — surfaced ONLY at the true product-
+  // value 'aha' moment, which for Parea is a confirmed crew forming (user
+  // has actual people they're going to an event with). We deliberately
+  // AVOID Boost purchase as a trigger — user just paid, value hasn't been
+  // delivered yet (Boost pays off over 48h), and asking there risks
+  // 'expensive and now they beg for stars' 1-star reviews.
+  //
+  // Extra guardrails so even the aha moment doesn't spam or backfire:
+  //   1. Only fire on the SECOND-or-later confirmed crew (first one might
+  //      be luck / partial engagement — wait until we've clearly delivered
+  //      twice).
+  //   2. Only fire if the account is at least 3 days old — fresh sign-ups
+  //      haven't had time to form an opinion.
+  //   3. Local AsyncStorage lastReviewPromptAt throttle to 60 days.
+  //   4. Google's own OS-level throttle (silent no-op if recently shown).
+  // All gated behind a single helper so future callers can't mess it up.
+  const bumpCrewConfirmedAndMaybeReview = async () => {
     try {
       if (Platform.OS === 'web') return
-      const shown = await AsyncStorage.getItem('lastReviewPromptAt')
-      if (shown) {
-        const daysSince = (Date.now() - Number(shown)) / (1000 * 60 * 60 * 24)
+      // 1. Bump counter of lifetime confirmed crews. Even if we skip the
+      //    prompt this time, the count is what unlocks a future call.
+      const raw = await AsyncStorage.getItem('confirmedCrewCount')
+      const count = (Number(raw) || 0) + 1
+      await AsyncStorage.setItem('confirmedCrewCount', String(count))
+      if (count < 2) return  // first crew — hold prompt for next one
+
+      // 2. Account age check. userData.createdAt would be nicer but not
+      //    always populated locally — fall back to a persistent 'firstOpen'
+      //    stamp we set on first launch of this build.
+      const firstOpen = await AsyncStorage.getItem('firstOpenAt')
+      if (firstOpen) {
+        const daysOld = (Date.now() - Number(firstOpen)) / (1000 * 60 * 60 * 24)
+        if (daysOld < 3) return
+      } else {
+        // First time ever we're computing this — stamp now and skip. Next
+        // confirmed crew will pass the age gate if enough time elapsed.
+        await AsyncStorage.setItem('firstOpenAt', String(Date.now()))
+        return
+      }
+
+      // 3. Local throttle — 60 days between prompts even if OS reset.
+      const lastShown = await AsyncStorage.getItem('lastReviewPromptAt')
+      if (lastShown) {
+        const daysSince = (Date.now() - Number(lastShown)) / (1000 * 60 * 60 * 24)
         if (daysSince < 60) return
       }
+
+      // 4. Google availability + throttle.
       if (!(await StoreReview.hasAction())) return
       if (!(await StoreReview.isAvailableAsync())) return
+
+      // Wait for the confirmed toast to land before Google's sheet slides in.
       setTimeout(async () => {
         try {
           await StoreReview.requestReview()
@@ -6098,6 +6135,10 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               setChatList(prev => prev.some(c => c.id === createdChatId) ? prev : [newChat, ...prev])
               setJoinedEvents(prev => ({ ...prev, [ev.id]: 'confirmed' }))
               addNotif({ type: 'confirmed', emoji: '✅', color: '#10B981', title: 'You\'re in!', body: `Your crew for "${ev.title}" is ready`, chatId: createdChatId })
+              // Aha moment — user just accepted an invite and their crew is
+              // formed. Counter-based throttle inside decides whether to
+              // actually surface the review prompt this time.
+              bumpCrewConfirmedAndMaybeReview()
               showToast('Your crew is ready — say hi!', 'Chat created! 💬', '💬')
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
               setMessagesInitialSubTab('messages')
@@ -8230,9 +8271,6 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               }
               setBoostsUsed(prev => prev + 1)
               showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
-              // Same high-value trigger as the paid Boost path — first free
-              // boost activation is also a positive moment worth asking.
-              maybeAskForReview()
             } catch (e: any) {
               console.warn('boost exception:', e?.message)
               showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
