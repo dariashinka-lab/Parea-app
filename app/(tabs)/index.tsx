@@ -23,6 +23,7 @@ import {
 
 LogBox.ignoreLogs(['Invalid Refresh Token', 'AuthApiError: Invalid Refresh Token'])
 import * as ExpoLinking from 'expo-linking'
+import * as StoreReview from 'expo-store-review'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import ConfettiCannon from 'react-native-confetti-cannon'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -1850,6 +1851,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
           e.id === eventId ? { ...e, boost_expires_at: expiresIso } : e
         ))
         showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+        // High-value moment (user just paid + saw the value) — good time to
+        // ask for a Play Store rating via the native in-app review prompt.
+        maybeAskForReview()
       } catch (e: any) {
         console.warn('validate-boost-receipt invoke error:', e?.message)
         showToast(e?.message || 'Try again in a moment', "Couldn't activate boost", '⚠️')
@@ -4689,6 +4693,32 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
 
   const [toast, setToast] = useState<{ visible: boolean; text: string; title?: string; emoji?: string }>({ visible: false, text: '' })
   const toastAnim = useRef(new Animated.Value(0)).current
+
+  // Native Play Store rating prompt — surfaced after high-value moments
+  // (successful Boost activation). Google throttles this at the OS level so
+  // repeated calls within ~3 months are silently no-op, but we belt-and-
+  // -suspender with an AsyncStorage flag so we never spam even on rare
+  // clock manipulation. Delayed 2.5s so the success toast lands first.
+  const maybeAskForReview = async () => {
+    try {
+      if (Platform.OS === 'web') return
+      const shown = await AsyncStorage.getItem('lastReviewPromptAt')
+      if (shown) {
+        const daysSince = (Date.now() - Number(shown)) / (1000 * 60 * 60 * 24)
+        if (daysSince < 60) return
+      }
+      if (!(await StoreReview.hasAction())) return
+      if (!(await StoreReview.isAvailableAsync())) return
+      setTimeout(async () => {
+        try {
+          await StoreReview.requestReview()
+          await AsyncStorage.setItem('lastReviewPromptAt', String(Date.now()))
+        } catch (e: any) { console.warn('StoreReview.requestReview failed:', e?.message) }
+      }, 2500)
+    } catch (e: any) {
+      console.warn('maybeAskForReview error:', e?.message)
+    }
+  }
 
   const showToast = (text: string, title?: string, emoji?: string, holdMs: number = 3500) => {
     setToast({ visible: true, text, title, emoji })
@@ -8200,6 +8230,9 @@ function FeedScreen({ userData = {}, onUpdateUserData, onLogOut }: { userData?: 
               }
               setBoostsUsed(prev => prev + 1)
               showToast('Boost activated ✨', '48 hours of featured placement', '🚀')
+              // Same high-value trigger as the paid Boost path — first free
+              // boost activation is also a positive moment worth asking.
+              maybeAskForReview()
             } catch (e: any) {
               console.warn('boost exception:', e?.message)
               showToast('Try again in a moment', "Couldn't activate boost", '⚠️')
